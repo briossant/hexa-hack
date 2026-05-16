@@ -8,6 +8,13 @@
   --color-shell: #fff8f2;
 }
 
+@keyframes bubble-fade {
+  0%   { opacity: 0; transform: translateY(4px); }
+  12%  { opacity: 1; transform: translateY(0); }
+  72%  { opacity: 1; }
+  100% { opacity: 0; }
+}
+
 html, body {
   background-color: var(--color-shell);
   color: var(--color-ink);

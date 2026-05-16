@@ -3,6 +3,7 @@ import socket from '../socket';
 import GameCircle from '../components/GameCircle';
 import VotePanel from '../components/VotePanel';
 import Timer from '../components/Timer';
+import ChatPanel from '../components/ChatPanel';
 import type {
   GameData,
   PublicPlayer,
@@ -110,8 +111,9 @@ export default function Game({ gameData, onLeave }: GameProps) {
     socket.emit('game:vote', { gameId, targetId });
   }
 
-  const latestMessages: Record<string, string> = {};
-  for (const m of messages) latestMessages[m.playerId] = m.text;
+  // Track latest message per player (by id, so Avatar can key DialogBubble correctly)
+  const latestMessages: Record<string, GameMessage> = {};
+  for (const m of messages) latestMessages[m.playerId] = m;
 
   const phaseBadge: Record<string, string> = {
     mayor_vote: 'bg-mauve/10 text-mauve',
@@ -156,7 +158,7 @@ export default function Game({ gameData, onLeave }: GameProps) {
     <div className="h-screen bg-shell flex flex-col overflow-hidden">
       <div className="flex-1 min-h-0 w-full mx-auto px-3 sm:px-6 lg:px-10 py-3 sm:py-4 flex flex-col max-w-7xl">
         {/* Header */}
-        <div className="flex justify-between items-center mb-3">
+        <div className="flex justify-between items-center mb-3 shrink-0">
           <div className="flex items-center gap-2">
             <span className="font-semibold text-ink text-sm sm:text-base">Round {round}</span>
             {phase && (
@@ -170,45 +172,40 @@ export default function Game({ gameData, onLeave }: GameProps) {
 
         {/* Notification banner */}
         {notification && (
-          <div className="bg-white border border-mauve/15 text-ink px-3 py-2 rounded-xl text-xs sm:text-sm mb-3 shadow-sm">
+          <div className="bg-white border border-mauve/15 text-ink px-3 py-2 rounded-xl text-xs sm:text-sm mb-3 shadow-sm shrink-0">
             {notification}
           </div>
         )}
 
-        {/* Game circle */}
-        <div className="flex-1 min-h-0">
-          <GameCircle players={players} myId={myId} latestMessages={latestMessages} votes={votes} />
+        {/* Main content: circle (left/top) + chat (right/bottom) */}
+        <div className="flex-1 min-h-0 flex flex-col lg:flex-row gap-3">
+          {/* Game circle */}
+          <div className="flex-1 min-h-0">
+            <GameCircle players={players} myId={myId} latestMessages={latestMessages} votes={votes} />
+          </div>
+
+          {/* Chat panel */}
+          <ChatPanel
+            messages={messages}
+            players={players}
+            myId={myId}
+            phase={phase}
+            input={input}
+            onInputChange={setInput}
+            onSend={sendMessage}
+          />
         </div>
 
         {/* Vote panel */}
         {(phase === 'vote' || phase === 'mayor_vote') && (
-          <VotePanel
-            players={players.filter((p) => p.isAlive && p.id !== myId)}
-            votes={votes}
-            myId={myId}
-            onVote={castVote}
-            phase={phase}
-          />
-        )}
-
-        {/* Chat input */}
-        {phase === 'discussion' && (
-          <div className="flex gap-2 mt-3">
-            <input
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
-              placeholder="Say something..."
-              maxLength={300}
-              className="flex-1 border border-mauve/25 rounded-xl px-3 sm:px-4 py-2.5 text-ink bg-white focus:outline-none focus:border-mauve/60 transition text-sm placeholder:text-mauve/40"
+          <div className="shrink-0 mt-3">
+            <VotePanel
+              players={players.filter((p) => p.isAlive && p.id !== myId)}
+              votes={votes}
+              myId={myId}
+              onVote={castVote}
+              phase={phase}
             />
-            <button
-              onClick={sendMessage}
-              disabled={!input.trim()}
-              className="px-4 sm:px-5 py-2.5 bg-ink text-shell text-sm font-medium rounded-xl hover:bg-ink/90 transition disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              Send
-            </button>
           </div>
         )}
       </div>

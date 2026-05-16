@@ -7,14 +7,15 @@ const AVATAR_SIZE = 'clamp(2.5rem, min(8vw, 10vh), 5rem)';
 interface AvatarProps {
   player: PublicPlayer;
   latestMessage?: string;
+  latestMessageId?: string;
   voteCount: number;
   isMe: boolean;
 }
 
-export default function Avatar({ player, latestMessage, voteCount, isMe }: AvatarProps) {
+export default function Avatar({ player, latestMessage, latestMessageId, voteCount, isMe }: AvatarProps) {
   return (
     <div className="relative text-center" style={{ width: AVATAR_SIZE }}>
-      <DialogBubble text={latestMessage} />
+      <DialogBubble key={latestMessageId} text={latestMessage} />
 
       <div
         className={[

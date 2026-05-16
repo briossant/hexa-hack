@@ -1,5 +1,5 @@
 import Avatar from './Avatar';
-import type { PublicPlayer } from '@hexa-hack/shared';
+import type { PublicPlayer, GameMessage } from '@hexa-hack/shared';
 
 // All layout is expressed as % of the container or CSS relative units.
 // Container has a fixed aspect-ratio so x% and y% map to a consistent visual circle.
@@ -12,7 +12,7 @@ const RADIUS_W = 32;        // radius as % of container width
 interface GameCircleProps {
   players: PublicPlayer[];
   myId: string;
-  latestMessages: Record<string, string>;
+  latestMessages: Record<string, GameMessage>;
   votes: Record<string, string>;
 }
 
@@ -34,6 +34,7 @@ export default function GameCircle({ players, myId, latestMessages, votes }: Gam
             const xPct = CX + RADIUS_W * Math.cos(angle);
             const yPct = CY + RADIUS_W * ASPECT_RATIO * Math.sin(angle);
             const voteCount = Object.values(votes).filter((t) => t === player.id).length;
+            const msg = latestMessages[player.id];
 
             return (
               <div
@@ -47,7 +48,8 @@ export default function GameCircle({ players, myId, latestMessages, votes }: Gam
               >
                 <Avatar
                   player={player}
-                  latestMessage={latestMessages[player.id]}
+                  latestMessage={msg?.text}
+                  latestMessageId={msg?.id}
                   voteCount={voteCount}
                   isMe={player.id === myId}
                 />
