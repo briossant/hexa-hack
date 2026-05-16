@@ -45,17 +45,6 @@ export default function GameCircle({ players, myId, latestMessages, votes, phase
       <div className="flex-1 min-h-0 flex items-center justify-center">
         <div style={{ height: '100%', minHeight: '180px', aspectRatio: ASPECT, maxWidth: '100%', position: 'relative' }}>
 
-          {/* Vote phase label */}
-          {isVotePhase && (
-            <div className="absolute top-2 left-1/2 -translate-x-1/2 z-20 text-xs font-medium text-ink bg-white/90 px-3 py-1 rounded-full border border-mauve/15 shadow-sm whitespace-nowrap">
-              {hasVoted
-                ? 'Waiting for others…'
-                : phase === 'mayor_vote'
-                ? 'Click a player to vote for Mayor'
-                : 'Click a player to eliminate'}
-            </div>
-          )}
-
           {/* SVG vote arrows */}
           <svg
             style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', overflow: 'visible' }}

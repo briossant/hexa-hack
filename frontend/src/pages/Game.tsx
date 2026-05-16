@@ -185,7 +185,20 @@ export default function Game({ gameData, onLeave }: GameProps) {
               </span>
             )}
           </div>
-          {!winner && !isBreak && <Timer seconds={timeLeft} />}
+          {!winner && !isBreak && (
+            <div className="flex items-center gap-3">
+              {(phase === 'vote' || phase === 'mayor_vote') && (
+                <span className="text-xs text-mauve/70 hidden sm:block">
+                  {votes[myId]
+                    ? 'Waiting for others…'
+                    : phase === 'mayor_vote'
+                    ? 'Click a player to vote for Mayor'
+                    : 'Click a player to eliminate'}
+                </span>
+              )}
+              <Timer seconds={timeLeft} />
+            </div>
+          )}
         </div>
 
         {/* Main content: circle (left/top) + chat (right/bottom) */}
