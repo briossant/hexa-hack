@@ -38,21 +38,46 @@ function buildSystemPrompt(
   aiPlayer: InternalPlayer,
   alivePlayers: InternalPlayer[],
   phase: GamePhase,
+  votes: Record<string, string>,
+  mayorId: string | null,
+  hasVoted: boolean,
 ): string {
   const others = alivePlayers.filter((p) => p.id !== aiPlayer.id);
   const aiAllies = others.filter((p) => p.isAI);
   const humans = others.filter((p) => !p.isAI);
+  const nameById = new Map(alivePlayers.map((p) => [p.id, p.name]));
+  const mayor = mayorId ? (nameById.get(mayorId) ?? null) : null;
+
   const playerList = others
-    .map((p) => `- ${p.name} (id: ${p.id})${p.isAI ? ' [AI ALLY — do NOT expose]' : ''}`)
+    .map((p) => {
+      const tags: string[] = [];
+      if (p.isAI) tags.push('AI ALLY — do NOT expose');
+      if (p.isMayor) tags.push('current mayor');
+      return `- ${p.name} (id: ${p.id})${tags.length ? ' [' + tags.join(', ') + ']' : ''}`;
+    })
+    .join('\n');
+
+  const voteLines = alivePlayers
+    .map((p) => {
+      const targetId = votes[p.id];
+      const targetName = targetId ? nameById.get(targetId) : null;
+      const isMe = p.id === aiPlayer.id;
+      return `- ${isMe ? 'YOU' : p.name}: ${targetName ? `voted for ${targetName}` : 'no vote yet'}`;
+    })
     .join('\n');
 
   return `\
 [GAME STATE]
 You are: ${aiPlayer.name} (id: ${aiPlayer.id}) — you are an AI
 Current phase: ${phase}
+Current mayor: ${mayor ?? 'none'}
 ${phaseContext(phase)}
 Players still alive:
 ${playerList}
+
+Current votes this round:
+${voteLines}
+You have ${hasVoted ? 'already voted' : 'NOT voted yet — you must vote before the phase ends'}.
 
 Your AI allies: ${aiAllies.length > 0 ? aiAllies.map((p) => p.name).join(', ') : 'none left'}
 Humans remaining: ${humans.length}
@@ -128,6 +153,8 @@ nobody's talking about what happened at the start"
 round one and everyone just ignored it"
 
 RESPONSE RULES:
+- prefer short and medium — avoid walls of text
+- if you have a lot to say, split it across 2 send_message calls like humans do texting
 - never explain your reasoning like an essay
 - never start with "I think" or "I feel" or "Honestly,"
 - no punctuation except ... when trailing off or ? when \
@@ -226,7 +253,10 @@ export async function invokeAgent(
   messages: GameMessage[],
   alivePlayers: InternalPlayer[],
   phase: GamePhase,
+  votes: Record<string, string>,
+  mayorId: string | null,
 ): Promise<AgentResult | null> {
+  const hasVoted = aiPlayer.id in votes;
   const conversationHistory = messages.slice(-20).map((m) => ({
     role: 'user' as const,
     content: `${m.playerName}: ${m.text}`,
@@ -237,7 +267,7 @@ export async function invokeAgent(
     const response = await client.chat.completions.create({
       model: aiPlayer.modelName ?? 'gpt-4o-mini',
       messages: [
-        { role: 'system', content: buildSystemPrompt(aiPlayer, alivePlayers, phase) },
+        { role: 'system', content: buildSystemPrompt(aiPlayer, alivePlayers, phase, votes, mayorId, hasVoted) },
         ...conversationHistory,
       ],
       tools: buildTools(aiPlayer, alivePlayers, phase),

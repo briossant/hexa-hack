@@ -330,19 +330,29 @@ export class GameState {
   private _scheduleAIVotes(phase: 'vote' | 'mayor_vote'): void {
     for (const ai of this.getAlivePlayers().filter((p) => p.isAI)) {
       const delay = Math.random() * 50_000 + 30_000; // 30–80 s into phase
-      setTimeout(() => this._runAIAgent(ai, phase), delay);
+      setTimeout(() => this._runAIAgent(ai, phase, true), delay);
     }
   }
 
   // Single agent invocation — handles tool result
-  private async _runAIAgent(ai: InternalPlayer, phase: GamePhase): Promise<void> {
+  private async _runAIAgent(ai: InternalPlayer, phase: GamePhase, skipCooldown = false): Promise<void> {
     if (this.phase !== phase) return;
 
-    // Cooldown: prevent the same AI from spamming messages
-    const lastSpoke = this.aiLastSpoke.get(ai.id) ?? 0;
-    if (Date.now() - lastSpoke < AI_COOLDOWN_MS) return;
+    // Cooldown: prevent the same AI from spamming messages — but never block a vote
+    const hasVoted = this.votes.has(ai.id);
+    if (!skipCooldown && hasVoted) {
+      const lastSpoke = this.aiLastSpoke.get(ai.id) ?? 0;
+      if (Date.now() - lastSpoke < AI_COOLDOWN_MS) return;
+    }
 
-    const result = await invokeAgent(ai, this.messages, this.getAlivePlayers(), phase);
+    const result = await invokeAgent(
+      ai,
+      this.messages,
+      this.getAlivePlayers(),
+      phase,
+      Object.fromEntries(this.votes),
+      this.mayorId,
+    );
     if (!result) return;
 
     if (result.name === 'send_message' && (this.phase === 'mayor_vote' || this.phase === 'vote')) {
