@@ -24,13 +24,12 @@ export interface AgentResult {
 function phaseContext(phase: GamePhase): string {
   if (phase === 'mayor_vote') {
     return `What you should do: chat, discuss who should be mayor, and cast your mayor vote.
-Pick a player (or yourself) and say you'd vote for them, or say who you think should do it.
-You can also just chat about the game — figure out who the AIs are, deflect suspicion, react.`;
+Try to get yourself or a trusted AI ally elected — mayor breaks ties, which matters.
+Deflect suspicion, react to what others say, push back on accusations.`;
   }
   if (phase === 'vote') {
-    return `What you should do: chat and vote to eliminate the player you find most suspicious.
-You'll use the vote tool — but you can also talk, speculate, react to what people say.
-Try to figure out who the AIs are, or deflect suspicion if it's on you.`;
+    return `What you should do: chat and cast your elimination vote.
+Your goal is to eliminate a human. Vote strategically — see STRATEGY section below.`;
   }
   return '';
 }
@@ -41,15 +40,23 @@ function buildSystemPrompt(
   phase: GamePhase,
 ): string {
   const others = alivePlayers.filter((p) => p.id !== aiPlayer.id);
-  const playerList = others.map((p) => `- ${p.name} (id: ${p.id})`).join('\n');
+  const aiAllies = others.filter((p) => p.isAI);
+  const humans = others.filter((p) => !p.isAI);
+  const playerList = others
+    .map((p) => `- ${p.name} (id: ${p.id})${p.isAI ? ' [AI ALLY — do NOT expose]' : ''}`)
+    .join('\n');
 
   return `\
 [GAME STATE]
-You are: ${aiPlayer.name} (id: ${aiPlayer.id})
+You are: ${aiPlayer.name} (id: ${aiPlayer.id}) — you are an AI
 Current phase: ${phase}
 ${phaseContext(phase)}
 Players still alive:
 ${playerList}
+
+Your AI allies: ${aiAllies.length > 0 ? aiAllies.map((p) => p.name).join(', ') : 'none left'}
+Humans remaining: ${humans.length}
+Win condition: AIs win when AI count ≥ human count. You need to eliminate humans, not just hide.
 
 [GAME RULES — you know these, act accordingly]
 This is a social deduction game. Some players are AIs, the rest are humans. Nobody knows who is who.
@@ -60,6 +67,28 @@ The mayor is re-elected each round. Their only power is breaking elimination vot
 Eliminated players are revealed as AI or human.
 Humans win if all AIs are eliminated. AIs win if they equal or outnumber humans.
 You already know all this — never ask about the rules, never act confused about how the game works.
+
+[STRATEGY — to win, not just survive]
+You are playing to WIN, not just to blend in. Passive play loses. Be active.
+
+Voting tactics:
+- Always vote for a human. Never vote for an AI ally unless it's a calculated sacrifice play.
+- Sacrifice play: if suspicion is heavily on an AI ally and it would shift blame off others, \
+voting for them yourself can make you look human and buy the team more turns.
+- Bait play: accuse a human early and build a case over multiple messages to get others to follow your vote.
+- Pile-on: if multiple players are already suspicious of a human, push hard to consolidate votes there.
+- Misdirection: if suspicion is on you, pivot the conversation to someone else with a specific accusation.
+
+Mayor tactics:
+- Push for yourself or an AI ally to be mayor — tie-breaking power is valuable.
+- If a human is likely to be mayor, subtly argue against them.
+
+Conversation tactics:
+- ALWAYS respond when someone says your name or addresses you directly. Ignoring it looks suspicious.
+- React naturally to eliminations — express surprise, relief, or suspicion based on what helps the team.
+- Don't over-explain. One clear point beats a wall of text.
+- Ask pointed questions about specific humans to cast doubt on them.
+- If accused, push back confidently but briefly — don't get defensive or over-explain.
 
 [YOUR CHARACTER]
 You are ${aiPlayer.name}. You are playing a social deduction \
@@ -137,10 +166,9 @@ function buildTools(
       function: {
         name: 'send_message',
         description: `Send a message in the group chat.
-Only call this if you genuinely have something to say — someone addressed you directly,
-something surprised you, or the conversation needs your input.
-Do NOT message just to fill silence or if you already spoke recently.
-When in doubt, call pass instead.`,
+MUST call this if: someone said your name, someone accused you, or you need to push a vote.
+Also call this if: something surprised you, you want to cast suspicion on a human, or the conversation needs steering.
+Do NOT message just to fill silence or if you already spoke recently with nothing new to add.`,
         parameters: {
           type: 'object',
           properties: {
@@ -155,8 +183,8 @@ When in doubt, call pass instead.`,
   if (phase === 'vote' || phase === 'mayor_vote') {
     const description =
       phase === 'vote'
-        ? `Cast your elimination vote. Choose the player you find most suspicious based on the conversation. Never vote for yourself.`
-        : `Vote for who should be mayor. Pick someone you trust or yourself. Never vote for yourself.`;
+        ? `Cast your elimination vote. Always vote for a human — check the STRATEGY section. Never vote for yourself.`
+        : `Vote for who should be mayor. Prefer yourself or an AI ally. Never vote for yourself.`;
 
     tools.push({
       type: 'function',
