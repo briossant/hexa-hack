@@ -1,0 +1,148 @@
+[
+  {
+    "game_id": "game_001",
+    "suspected_player": "player_3",
+    "ground_truth_is_bot": true,
+    "rounds": [
+      {
+        "round": 1,
+        "messages": [
+          { "player": "player_1", "text": "Ok who do we think is sus this round?" },
+          { "player": "player_2", "text": "lol player_4 hasn't said a word, classic bot move" },
+          { "player": "player_3", "text": "I do not have enough information to accuse anyone yet. I think we should wait and observe more before voting." },
+          { "player": "player_4", "text": "bro im just chilling, what" },
+          { "player": "player_5", "text": "i vote player_3, that sentence felt off" }
+        ],
+        "votes": [
+          { "from": "player_5", "to": "player_3" },
+          { "from": "player_1", "to": "player_4" }
+        ]
+      },
+      {
+        "round": 2,
+        "messages": [
+          { "player": "player_1", "text": "player_3 explain yourself" },
+          { "player": "player_3", "text": "It is reasonable to gather additional evidence before making a definitive judgment about any player." },
+          { "player": "player_2", "text": "yeah no human talks like that" },
+          { "player": "player_3", "text": "I understand your concern and appreciate the careful approach to this discussion." }
+        ],
+        "votes": [
+          { "from": "player_1", "to": "player_3" },
+          { "from": "player_2", "to": "player_3" },
+          { "from": "player_5", "to": "player_3" }
+        ]
+      }
+    ]
+  },
+  {
+    "game_id": "game_002",
+    "suspected_player": "player_2",
+    "ground_truth_is_bot": true,
+    "rounds": [
+      {
+        "round": 1,
+        "messages": [
+          { "player": "player_1", "text": "yo player_2 you been quiet" },
+          { "player": "player_2", "text": "Thank you for noticing. I prefer to listen before contributing to the discussion." },
+          { "player": "player_3", "text": "ok thats weird" },
+          { "player": "player_4", "text": "vote whoever the group votes lol" },
+          { "player": "player_2", "text": "I will support the majority decision as it reflects the collective wisdom of the group." }
+        ],
+        "votes": [
+          { "from": "player_1", "to": "player_2" },
+          { "from": "player_2", "to": "player_4" },
+          { "from": "player_3", "to": "player_2" },
+          { "from": "player_4", "to": "player_2" }
+        ]
+      }
+    ]
+  },
+  {
+    "game_id": "game_003",
+    "suspected_player": "player_5",
+    "ground_truth_is_bot": true,
+    "rounds": [
+      {
+        "round": 1,
+        "messages": [
+          { "player": "player_5", "text": "Based on the patterns observed, the optimal strategy is to vote based on inconsistencies in stated positions." },
+          { "player": "player_1", "text": "what" },
+          { "player": "player_2", "text": "did chatgpt just join the game" },
+          { "player": "player_5", "text": "I am simply applying logical reasoning to maximize the probability of identifying the bot." }
+        ],
+        "votes": [
+          { "from": "player_1", "to": "player_5" },
+          { "from": "player_2", "to": "player_5" }
+        ]
+      },
+      {
+        "round": 2,
+        "messages": [
+          { "player": "player_3", "text": "player_5 say something normal" },
+          { "player": "player_5", "text": "Your request is understood. I find this game to be an interesting exercise in social deduction." },
+          { "player": "player_4", "text": "yeah ok bye player_5" }
+        ],
+        "votes": [
+          { "from": "player_3", "to": "player_5" },
+          { "from": "player_4", "to": "player_5" }
+        ]
+      }
+    ]
+  },
+  {
+    "game_id": "game_004",
+    "suspected_player": "player_1",
+    "ground_truth_is_bot": false,
+    "rounds": [
+      {
+        "round": 1,
+        "messages": [
+          { "player": "player_1", "text": "bruh i swear im not the bot why is everyone looking at me" },
+          { "player": "player_2", "text": "you sus tho" },
+          { "player": "player_1", "text": "i literally typed a typo earlier do bots typo??" },
+          { "player": "player_3", "text": "fair point" },
+          { "player": "player_1", "text": "vote player_4 i swear that guy hasnt blinked all game" }
+        ],
+        "votes": [
+          { "from": "player_1", "to": "player_4" },
+          { "from": "player_2", "to": "player_1" },
+          { "from": "player_3", "to": "player_4" }
+        ]
+      }
+    ]
+  },
+  {
+    "game_id": "game_005",
+    "suspected_player": "player_4",
+    "ground_truth_is_bot": true,
+    "rounds": [
+      {
+        "round": 1,
+        "messages": [
+          { "player": "player_1", "text": "any guesses?" },
+          { "player": "player_4", "text": "I suspect player_2 based on the linguistic patterns in their messages." },
+          { "player": "player_2", "text": "what patterns lol" },
+          { "player": "player_4", "text": "The use of casual abbreviations is inconsistent with the rest of the conversation." },
+          { "player": "player_3", "text": "everyone uses abbreviations player_4 wtf" }
+        ],
+        "votes": [
+          { "from": "player_1", "to": "player_4" },
+          { "from": "player_3", "to": "player_4" }
+        ]
+      },
+      {
+        "round": 2,
+        "messages": [
+          { "player": "player_1", "text": "player_4 defend yourself" },
+          { "player": "player_4", "text": "I appreciate the opportunity to clarify. My analysis was based purely on observable evidence." },
+          { "player": "player_2", "text": "ok yeah definitely the bot" }
+        ],
+        "votes": [
+          { "from": "player_1", "to": "player_4" },
+          { "from": "player_2", "to": "player_4" },
+          { "from": "player_3", "to": "player_4" }
+        ]
+      }
+    ]
+  }
+]

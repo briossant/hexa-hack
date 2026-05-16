@@ -1,0 +1,16 @@
+{
+  "name": "turing-trace-analyzer",
+  "version": "0.1.0",
+  "description": "GLiNER2 bot detection via Pioneer API for Hunt the Bot",
+  "type": "module",
+  "scripts": {
+    "start": "node src/server.js",
+    "test:zero-shot": "node test/zero-shot.js",
+    "test:single": "node test/single-message.js",
+    "test:report": "node test/full-report.js",
+    "test:compare": "node test/compare-models.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5"
+  }
+}
