@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import socket from '../socket';
 
 export default function Lobby({ onGameStart }) {
-  const [name, setName] = useState('');
   const [status, setStatus] = useState('idle');
   const [position, setPosition] = useState(0);
 
@@ -25,8 +24,7 @@ export default function Lobby({ onGameStart }) {
   }, [onGameStart]);
 
   const joinQueue = () => {
-    if (!name.trim()) return;
-    socket.emit('queue:join', { name: name.trim() });
+    socket.emit('queue:join');
     setStatus('queued');
   };
 
@@ -40,18 +38,9 @@ export default function Lobby({ onGameStart }) {
 
         {status === 'idle' ? (
           <div className="flex flex-col gap-3">
-            <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && joinQueue()}
-              placeholder="Your name"
-              maxLength={20}
-              className="w-full border border-mauve/25 rounded-xl px-4 py-3 text-ink bg-white focus:outline-none focus:border-mauve/60 transition placeholder:text-mauve/40"
-            />
             <button
               onClick={joinQueue}
-              disabled={!name.trim()}
-              className="w-full bg-coral text-white rounded-xl py-3 font-medium hover:bg-coral/90 transition disabled:opacity-40 disabled:cursor-not-allowed"
+              className="w-full bg-coral text-white rounded-xl py-3 font-medium hover:bg-coral/90 transition"
             >
               Join Queue
             </button>

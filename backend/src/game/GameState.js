@@ -49,7 +49,6 @@ class GameState {
 
     if (phase === 'mayor_vote') {
       this.timer = setTimeout(() => this._endMayorVote(), duration);
-      this._scheduleAIVotes();
     } else if (phase === 'discussion') {
       this.timer = setTimeout(() => this._startPhase('vote'), duration);
       this._scheduleAIMessages();
@@ -82,14 +81,20 @@ class GameState {
     if (eliminatedId) {
       const p = this.players.get(eliminatedId);
       p.isAlive = false;
+      const eliminatedInfo = {
+        id: eliminatedId,
+        name: p.name,
+        isAI: p.isAI,
+        ...(p.isAI ? { modelName: p.modelName } : {}),
+      };
       this.log.push({
         round: this.round,
-        eliminated: { id: eliminatedId, name: p.name, isAI: p.isAI },
+        eliminated: eliminatedInfo,
         votes: voteSnapshot,
         messages: this.messages.filter((m) => m.round === this.round),
       });
       this.emit('round:end', {
-        eliminated: { id: eliminatedId, name: p.name, isAI: p.isAI },
+        eliminated: eliminatedInfo,
         votes: voteSnapshot,
         round: this.round,
       });

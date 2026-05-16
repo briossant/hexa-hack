@@ -1,9 +1,8 @@
 const { addToQueue, getGame } = require('../matchmaking/queue');
 
 function registerHandlers(socket, io) {
-  socket.on('queue:join', ({ name } = {}) => {
-    if (!name || typeof name !== 'string') return;
-    addToQueue(socket.id, name.trim().slice(0, 20), io);
+  socket.on('queue:join', () => {
+    addToQueue(socket.id, io);
   });
 
   socket.on('game:message', ({ gameId, text } = {}) => {

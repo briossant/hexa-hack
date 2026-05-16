@@ -1,14 +1,16 @@
 import Avatar from './Avatar';
 
-const RADIUS = 180;
-const CX = 300;
-const CY = 240;
-const CONTAINER_W = 600;
-const CONTAINER_H = 480;
+// All layout is expressed as % of the container or CSS relative units.
+// Container has a fixed aspect-ratio so x% and y% map to a consistent visual circle.
+const ASPECT = '5 / 4';            // container width:height ratio
+const ASPECT_RATIO = 5 / 4;        // numeric, used to correct y% so the ring is circular
+const CX = 50;                      // center x, % of container width
+const CY = 50;                      // center y, % of container height
+const RADIUS_W = 32;                // radius as % of container width
 
 export default function GameCircle({ players, myId, latestMessages, votes }) {
   const alive = players.filter((p) => p.isAlive);
-  const dead = players.filter((p) => !p.isAlive);
+  const dead  = players.filter((p) => !p.isAlive);
   const total = alive.length;
 
   const meIndex = alive.findIndex((p) => p.id === myId);
@@ -17,15 +19,26 @@ export default function GameCircle({ players, myId, latestMessages, votes }) {
   return (
     <div>
       {/* Circle arena */}
-      <div style={{ position: 'relative', width: CONTAINER_W, height: CONTAINER_H, margin: '0 auto' }}>
+      <div style={{ width: '100%', aspectRatio: ASPECT, position: 'relative' }}>
         {ordered.map((player, i) => {
           const angle = ((90 + (i / total) * 360) * Math.PI) / 180;
-          const x = CX + RADIUS * Math.cos(angle);
-          const y = CY + RADIUS * Math.sin(angle);
+
+          // Multiply sin by ASPECT_RATIO so the ring looks circular despite the non-square container
+          const xPct = CX + RADIUS_W * Math.cos(angle);
+          const yPct = CY + RADIUS_W * ASPECT_RATIO * Math.sin(angle);
+
           const voteCount = Object.values(votes).filter((t) => t === player.id).length;
 
           return (
-            <div key={player.id} style={{ position: 'absolute', left: x - 28, top: y - 28 }}>
+            <div
+              key={player.id}
+              style={{
+                position: 'absolute',
+                left: `${xPct}%`,
+                top: `${yPct}%`,
+                transform: 'translate(-50%, -50%)',
+              }}
+            >
               <Avatar
                 player={player}
                 latestMessage={latestMessages[player.id]}
@@ -42,11 +55,16 @@ export default function GameCircle({ players, myId, latestMessages, votes }) {
         <div className="flex gap-3 justify-center flex-wrap py-3 border-t border-mauve/10">
           {dead.map((p) => (
             <div key={p.id} className="flex items-center gap-1.5 opacity-40">
-              <div className="w-6 h-6 rounded-full bg-mauve/10 flex items-center justify-center text-xs font-bold text-mauve">
-                {p.name[0].toUpperCase()}
-              </div>
+              <img
+                src={`https://api.dicebear.com/9.x/pixel-art/svg?seed=${encodeURIComponent(p.avatarSeed ?? p.name)}`}
+                alt={p.name}
+                className="w-6 h-6 rounded-full object-cover"
+              />
               <span className="text-xs text-mauve">
-                {p.name}{p.isAI !== undefined ? ` · ${p.isAI ? 'AI' : 'Human'}` : ''}
+                {p.name}
+                {p.isAI !== undefined && (
+                  <> &middot; {p.isAI ? (p.modelName ?? 'AI') : 'Human'}</>
+                )}
               </span>
             </div>
           ))}

@@ -41,9 +41,14 @@ export default function Game({ gameData, onLeave }) {
     socket.on('round:end', ({ eliminated, round }) => {
       if (eliminated) {
         setPlayers((prev) =>
-          prev.map((p) => (p.id === eliminated.id ? { ...p, isAlive: false, isAI: eliminated.isAI } : p))
+          prev.map((p) =>
+            p.id === eliminated.id
+              ? { ...p, isAlive: false, isAI: eliminated.isAI, modelName: eliminated.modelName }
+              : p
+          )
         );
-        notify(`${eliminated.name} eliminated — they were ${eliminated.isAI ? 'an AI' : 'a human'}!`);
+        const reveal = eliminated.isAI ? `AI · ${eliminated.modelName ?? 'unknown model'}` : 'Human';
+        notify(`${eliminated.name} eliminated — ${reveal}`);
       } else {
         notify('No elimination this round (tied vote)');
       }
@@ -115,7 +120,7 @@ export default function Game({ gameData, onLeave }) {
                   {p.name} {p.id === myId && <span className="text-mauve text-xs">(you)</span>}
                 </span>
                 <span className={`text-xs font-medium ${p.isAI ? 'text-coral' : 'text-sage'}`}>
-                  {p.isAI ? 'AI' : 'Human'}{!p.isAlive ? ' · out' : ''}
+                  {p.isAI ? `AI · ${p.modelName ?? 'unknown'}` : 'Human'}{!p.isAlive ? ' · out' : ''}
                 </span>
               </div>
             ))}
@@ -132,14 +137,14 @@ export default function Game({ gameData, onLeave }) {
   }
 
   return (
-    <div className="min-h-screen bg-shell">
-      <div className="max-w-3xl mx-auto px-4 py-4">
+    <div className="min-h-screen bg-shell flex flex-col">
+      <div className="flex-1 w-full max-w-3xl mx-auto px-3 sm:px-4 py-3 sm:py-4 flex flex-col">
         {/* Header */}
-        <div className="flex justify-between items-center mb-4">
-          <div className="flex items-center gap-3">
-            <span className="font-semibold text-ink">Round {round}</span>
+        <div className="flex justify-between items-center mb-3">
+          <div className="flex items-center gap-2">
+            <span className="font-semibold text-ink text-sm sm:text-base">Round {round}</span>
             {phase && (
-              <span className={`text-xs px-2.5 py-1 rounded-full font-medium capitalize ${phaseBadge}`}>
+              <span className={`text-xs px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full font-medium capitalize ${phaseBadge}`}>
                 {phase.replace('_', ' ')}
               </span>
             )}
@@ -149,7 +154,7 @@ export default function Game({ gameData, onLeave }) {
 
         {/* Notification banner */}
         {notification && (
-          <div className="bg-white border border-mauve/15 text-ink px-4 py-2.5 rounded-xl text-sm mb-4 shadow-sm">
+          <div className="bg-white border border-mauve/15 text-ink px-3 py-2 rounded-xl text-xs sm:text-sm mb-3 shadow-sm">
             {notification}
           </div>
         )}
@@ -170,19 +175,19 @@ export default function Game({ gameData, onLeave }) {
 
         {/* Chat input */}
         {phase === 'discussion' && (
-          <div className="flex gap-2 mt-4">
+          <div className="flex gap-2 mt-3">
             <input
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
               placeholder="Say something..."
               maxLength={300}
-              className="flex-1 border border-mauve/25 rounded-xl px-4 py-2.5 text-ink bg-white focus:outline-none focus:border-mauve/60 transition text-sm placeholder:text-mauve/40"
+              className="flex-1 border border-mauve/25 rounded-xl px-3 sm:px-4 py-2.5 text-ink bg-white focus:outline-none focus:border-mauve/60 transition text-sm placeholder:text-mauve/40"
             />
             <button
               onClick={sendMessage}
               disabled={!input.trim()}
-              className="px-5 py-2.5 bg-ink text-shell text-sm font-medium rounded-xl hover:bg-ink/90 transition disabled:opacity-40 disabled:cursor-not-allowed"
+              className="px-4 sm:px-5 py-2.5 bg-ink text-shell text-sm font-medium rounded-xl hover:bg-ink/90 transition disabled:opacity-40 disabled:cursor-not-allowed"
             >
               Send
             </button>
