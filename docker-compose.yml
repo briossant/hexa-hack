@@ -49,9 +49,10 @@ services:
       context: .
       dockerfile: frontend/Dockerfile
     ports:
-      - "127.0.0.1:6767:80"
+      - "6767:80"
     depends_on:
       - backend
+      - turing-trace-analyzer
     restart: unless-stopped
 
 volumes:

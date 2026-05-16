@@ -8,7 +8,8 @@
     "test:zero-shot": "node test/zero-shot.js",
     "test:single": "node test/single-message.js",
     "test:report": "node test/full-report.js",
-    "test:compare": "node test/compare-models.js"
+    "test:compare": "node test/compare-models.js",
+    "export:training": "node scripts/export-training-data.js"
   },
   "dependencies": {
     "dotenv": "^16.4.5",

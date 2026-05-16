@@ -9,6 +9,7 @@ import type {
   PublicPlayer,
   GameMessage,
   EliminatedPlayer,
+  GameAnalysisResponse,
 } from '@hexa-hack/shared';
 
 interface GameProps {
@@ -23,6 +24,12 @@ interface AlertState {
   duration?: number;
 }
 
+type AnalysisState =
+  | { status: 'idle' }
+  | { status: 'loading' }
+  | { status: 'success'; data: GameAnalysisResponse }
+  | { status: 'error'; message: string };
+
 export default function Game({ gameData, onLeave }: GameProps) {
   const { gameId, yourId: myId } = gameData;
   const [players, setPlayers] = useState<PublicPlayer[]>(gameData.players);
@@ -35,6 +42,7 @@ export default function Game({ gameData, onLeave }: GameProps) {
   const [winner, setWinner] = useState<'humans' | 'ai' | null>(null);
   const [isBreak, setIsBreak] = useState(false);
   const [alert, setAlert] = useState<AlertState | null>(null);
+  const [analysis, setAnalysis] = useState<AnalysisState>({ status: 'idle' });
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
@@ -90,7 +98,7 @@ export default function Game({ gameData, onLeave }: GameProps) {
       }
     });
 
-    socket.on('game:over', ({ winner, players }) => {
+    socket.on('game:over', async ({ winner, players }) => {
       if (timerRef.current) clearInterval(timerRef.current);
       setPlayers(players);
       setWinner(winner);
@@ -103,6 +111,16 @@ export default function Game({ gameData, onLeave }: GameProps) {
           : 'The AIs now equal or outnumber the humans.',
         accent: winner === 'humans' ? 'sage' : 'coral',
       });
+
+      setAnalysis({ status: 'loading' });
+      try {
+        const res = await fetch(`/analyzer/analyze/${gameId}`, { method: 'POST' });
+        if (!res.ok) throw new Error(`analyzer responded ${res.status}`);
+        const data: GameAnalysisResponse = await res.json();
+        setAnalysis({ status: 'success', data });
+      } catch (err) {
+        setAnalysis({ status: 'error', message: (err as Error).message });
+      }
     });
 
     return () => {
@@ -228,6 +246,37 @@ export default function Game({ gameData, onLeave }: GameProps) {
                         <span className={`text-xs font-medium ${p.isAI ? 'text-coral' : 'text-sage'}`}>
                           {p.isAI ? `AI · ${p.modelName ?? 'unknown'}` : 'Human'}{!p.isAlive ? ' · out' : ''}
                         </span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mb-6">
+                    <h3 className="text-sm font-semibold text-ink mb-2">Why were they caught?</h3>
+                    {analysis.status === 'loading' && (
+                      <p className="text-mauve text-xs">Analyzing game logs…</p>
+                    )}
+                    {analysis.status === 'error' && (
+                      <p className="text-coral text-xs">Analysis failed: {analysis.message}</p>
+                    )}
+                    {analysis.status === 'success' && analysis.data.exposed_bots_count === 0 && (
+                      <p className="text-mauve text-xs">No bots were exposed in this game.</p>
+                    )}
+                    {analysis.status === 'success' && analysis.data.forensic_reports.map(({ player_name, model_name, report }) => (
+                      <div key={player_name} className="mb-3 p-3 rounded-lg bg-mauve/5">
+                        <div className="flex justify-between items-baseline mb-1">
+                          <span className="text-sm font-medium text-ink">{player_name}</span>
+                          <span className="text-xs text-mauve">{model_name ?? 'unknown'} · {report.severity}</span>
+                        </div>
+                        <p className="text-xs text-mauve/80 mb-2 italic">{report.verdict}</p>
+                        {report.sections.map((s) => (
+                          <div key={s.label} className="mb-2 last:mb-0">
+                            <p className="text-xs font-medium text-ink">{s.headline}</p>
+                            {s.evidence.map((e, i) => (
+                              <p key={i} className="text-xs text-mauve/70 pl-2">
+                                r{e.round}: <span className="italic">"{e.quote}"</span>
+                              </p>
+                            ))}
+                          </div>
+                        ))}
                       </div>
                     ))}
                   </div>

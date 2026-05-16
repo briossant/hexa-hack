@@ -141,3 +141,48 @@ export interface ClientToServerEvents {
   'game:vote': (payload: CastVotePayload) => void;
   'game:rejoin': (payload: RejoinPayload) => void;
 }
+
+// ─── Turing Trace Analyzer (GLiNER2 via Pioneer) ─────────────────────────────
+
+export type ForensicSeverity = 'NONE' | 'LOW' | 'MEDIUM' | 'HIGH';
+
+export interface ForensicEvidence {
+  round: number;
+  quote: string;
+}
+
+export interface ForensicSection {
+  label: string;
+  headline: string;
+  description: string;
+  occurrences: number;
+  evidence: ForensicEvidence[];
+}
+
+export interface ForensicReport {
+  game_id: string;
+  suspected_player: string;
+  ground_truth_is_bot: boolean;
+  severity: ForensicSeverity;
+  verdict: string;
+  total_patterns: number;
+  distinct_patterns: number;
+  sections: ForensicSection[];
+}
+
+export interface ExposedBotReport {
+  player_name: string;
+  player_id: string;
+  model_name: string | null;
+  survived_rounds: number;
+  report: ForensicReport;
+}
+
+export interface GameAnalysisResponse {
+  game_id: string;
+  winner: WinnerType;
+  total_rounds: number;
+  model_used: string;
+  exposed_bots_count: number;
+  forensic_reports: ExposedBotReport[];
+}
