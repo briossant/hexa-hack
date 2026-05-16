@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import Avatar from './Avatar';
 import type { PublicPlayer, GameMessage, GamePhase } from '@hexa-hack/shared';
 
@@ -18,8 +19,20 @@ interface GameCircleProps {
 export default function GameCircle({ players, myId, latestMessages, votes, phase, onVote }: GameCircleProps) {
   const total = players.length;
 
-  const meIndex = players.findIndex((p) => p.id === myId);
-  const ordered = meIndex === -1 ? players : [...players.slice(meIndex), ...players.slice(0, meIndex)];
+  // Shuffle once on mount so AI players aren't always adjacent
+  const shuffledIdsRef = useRef<string[] | null>(null);
+  if (!shuffledIdsRef.current) {
+    const ids = players.map((p) => p.id);
+    for (let i = ids.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [ids[i], ids[j]] = [ids[j], ids[i]];
+    }
+    shuffledIdsRef.current = ids;
+  }
+  const playerById = Object.fromEntries(players.map((p) => [p.id, p]));
+  const shuffled = shuffledIdsRef.current.map((id) => playerById[id]).filter(Boolean) as PublicPlayer[];
+  const meIndex = shuffled.findIndex((p) => p.id === myId);
+  const ordered = meIndex === -1 ? shuffled : [...shuffled.slice(meIndex), ...shuffled.slice(0, meIndex)];
 
   const isVotePhase = phase === 'vote' || phase === 'mayor_vote';
   const myVoteTarget = votes[myId];
@@ -98,6 +111,18 @@ export default function GameCircle({ players, myId, latestMessages, votes, phase
                 );
               })}
             </svg>
+
+            {/* Center phase indicator */}
+            {phase === 'mayor_vote' && (
+              <div style={{
+                position: 'absolute', left: '50%', top: '50%',
+                transform: 'translate(-50%, -50%)',
+                zIndex: 5, pointerEvents: 'none',
+                fontSize: '2rem', lineHeight: 1, opacity: 0.5,
+              }}>
+                👑
+              </div>
+            )}
 
             {/* Player avatars */}
             {ordered.map((player, i) => {
