@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import { Server } from 'socket.io';
 import { invokeAgent } from '../ai/aiPlayer';
+import { persistGame } from '../db/persist';
 import type { InternalPlayer, SocketData } from '../types';
 import type {
   ServerToClientEvents,
@@ -36,6 +37,7 @@ export class GameState {
 
   private readonly aiDebounceTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private readonly aiLastSpoke = new Map<string, number>();
+  private startedAt = 0;
 
   constructor(gameId: string, players: Omit<InternalPlayer, 'isAlive' | 'isMayor'>[], io: IoServer) {
     this.gameId = gameId;
@@ -48,6 +50,7 @@ export class GameState {
   // ─── Core ──────────────────────────────────────────────────────────────────
 
   start(): { phase: GamePhase; round: number; phaseEndsAt: number } {
+    this.startedAt = Date.now();
     this.round = 1;
     this._beginPhase('mayor_vote');
     return { phase: this.phase!, round: this.round, phaseEndsAt: this.phaseEndsAt! };
@@ -185,6 +188,16 @@ export class GameState {
     if (this.timer) clearTimeout(this.timer);
     this.phase = 'ended';
     this.emit('game:over', { winner, players: this._publicPlayers(true), log: this.log });
+
+    persistGame({
+      gameId: this.gameId,
+      winner,
+      startedAt: this.startedAt,
+      endedAt: Date.now(),
+      totalRounds: this.round,
+      players: [...this.players.values()],
+      log: this.log,
+    }).catch((err) => console.error('[db] Failed to persist game:', err));
   }
 
   private _resolveVote(): string | null {
