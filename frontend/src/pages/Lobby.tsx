@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import socket from '../socket';
 import Leaderboard from './Leaderboard';
-import PatternStats from './PatternStats';
 import type { GameStartPayload } from '@hexa-hack/shared';
 
 interface LobbyProps {
@@ -265,9 +264,6 @@ export default function Lobby({ onGameStart }: LobbyProps) {
               </p>
               <div className="border border-mauve/15 rounded-2xl bg-white overflow-hidden shadow-sm">
                 <Leaderboard />
-                <div className="border-t border-mauve/10">
-                  <PatternStats />
-                </div>
               </div>
             </div>
 
