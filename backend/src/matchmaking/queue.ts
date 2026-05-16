@@ -59,11 +59,10 @@ function _startGame(io: IoServer): void {
   }
 
   const AI_MODELS: { model: string; weight: number }[] = [
-    { model: 'gpt-4o-mini',  weight: 40 },
-    { model: 'gpt-4.1-nano', weight: 25 },
-    { model: 'gpt-4.1-mini', weight: 20 },
-    { model: 'gpt-4o',       weight: 10 },
-    { model: 'o4-mini',      weight:  5 },
+    { model: 'gpt-5.5',      weight: 30 },
+    { model: 'gpt-5.4',      weight: 30 },
+    { model: 'gpt-5.4-mini', weight: 25 },
+    { model: 'gpt-5.4-nano', weight: 15 },
   ];
   const totalWeight = AI_MODELS.reduce((sum, m) => sum + m.weight, 0);
 
