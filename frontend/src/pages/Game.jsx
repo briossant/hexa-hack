@@ -92,78 +92,103 @@ export default function Game({ gameData, onLeave }) {
   const latestMessages = {};
   messages.forEach((m) => { latestMessages[m.playerId] = m.text; });
 
+  const phaseBadge = {
+    mayor_vote: 'bg-mauve/10 text-mauve',
+    discussion: 'bg-sage/15 text-sage',
+    vote: 'bg-coral/10 text-coral',
+  }[phase] ?? 'bg-mauve/10 text-mauve';
+
   if (winner) {
     return (
-      <div style={{ padding: 40, maxWidth: 500, margin: '60px auto', textAlign: 'center' }}>
-        <h1>{winner === 'humans' ? 'Humans win!' : 'AIs win!'}</h1>
-        <p style={{ color: '#666' }}>Game lasted {round} round{round !== 1 ? 's' : ''}</p>
-        <div style={{ margin: '24px 0', textAlign: 'left' }}>
-          {players.map((p) => (
-            <div key={p.id} style={{ padding: '4px 0', display: 'flex', justifyContent: 'space-between' }}>
-              <span>{p.name} {p.id === myId ? '(you)' : ''}</span>
-              <span style={{ color: p.isAI ? '#ff4d4f' : '#52c41a' }}>
-                {p.isAI ? 'AI' : 'Human'} {!p.isAlive ? '— eliminated' : ''}
-              </span>
-            </div>
-          ))}
+      <div className="min-h-screen bg-shell flex items-center justify-center px-4">
+        <div className="w-full max-w-sm">
+          <h1 className={`text-4xl font-bold mb-1 ${winner === 'humans' ? 'text-sage' : 'text-coral'}`}>
+            {winner === 'humans' ? 'Humans win!' : 'AIs win!'}
+          </h1>
+          <p className="text-mauve text-sm mb-8">
+            Game lasted {round} round{round !== 1 ? 's' : ''}
+          </p>
+          <div className="flex flex-col gap-1 mb-8">
+            {players.map((p) => (
+              <div key={p.id} className="flex justify-between items-center py-1.5 border-b border-mauve/10 last:border-0">
+                <span className="text-ink text-sm">
+                  {p.name} {p.id === myId && <span className="text-mauve text-xs">(you)</span>}
+                </span>
+                <span className={`text-xs font-medium ${p.isAI ? 'text-coral' : 'text-sage'}`}>
+                  {p.isAI ? 'AI' : 'Human'}{!p.isAlive ? ' · out' : ''}
+                </span>
+              </div>
+            ))}
+          </div>
+          <button
+            onClick={onLeave}
+            className="w-full bg-ink text-shell rounded-xl py-3 font-medium hover:bg-ink/90 transition"
+          >
+            Back to Lobby
+          </button>
         </div>
-        <button onClick={onLeave} style={{ padding: '10px 28px', fontSize: 15, cursor: 'pointer' }}>
-          Back to Lobby
-        </button>
       </div>
     );
   }
 
   return (
-    <div style={{ padding: 20, maxWidth: 900, margin: '0 auto' }}>
-      {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-        <div>
-          <strong>Round {round}</strong>
-          <span style={{ marginLeft: 12, color: '#888', textTransform: 'capitalize' }}>
-            {phase?.replace('_', ' ')}
-          </span>
+    <div className="min-h-screen bg-shell">
+      <div className="max-w-3xl mx-auto px-4 py-4">
+        {/* Header */}
+        <div className="flex justify-between items-center mb-4">
+          <div className="flex items-center gap-3">
+            <span className="font-semibold text-ink">Round {round}</span>
+            {phase && (
+              <span className={`text-xs px-2.5 py-1 rounded-full font-medium capitalize ${phaseBadge}`}>
+                {phase.replace('_', ' ')}
+              </span>
+            )}
+          </div>
+          <Timer seconds={timeLeft} />
         </div>
-        <Timer seconds={timeLeft} />
-      </div>
 
-      {/* Notification banner */}
-      {notification && (
-        <div style={{ background: '#fffbe6', border: '1px solid #ffe58f', padding: '8px 14px', borderRadius: 6, marginBottom: 12 }}>
-          {notification}
-        </div>
-      )}
+        {/* Notification banner */}
+        {notification && (
+          <div className="bg-white border border-mauve/15 text-ink px-4 py-2.5 rounded-xl text-sm mb-4 shadow-sm">
+            {notification}
+          </div>
+        )}
 
-      {/* Game circle */}
-      <GameCircle players={players} myId={myId} latestMessages={latestMessages} votes={votes} />
+        {/* Game circle */}
+        <GameCircle players={players} myId={myId} latestMessages={latestMessages} votes={votes} />
 
-      {/* Vote panel */}
-      {(phase === 'vote' || phase === 'mayor_vote') && (
-        <VotePanel
-          players={players.filter((p) => p.isAlive && p.id !== myId)}
-          votes={votes}
-          myId={myId}
-          onVote={castVote}
-          phase={phase}
-        />
-      )}
-
-      {/* Chat input */}
-      {phase === 'discussion' && (
-        <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
-          <input
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
-            placeholder="Say something..."
-            maxLength={300}
-            style={{ flex: 1, padding: 10, fontSize: 14 }}
+        {/* Vote panel */}
+        {(phase === 'vote' || phase === 'mayor_vote') && (
+          <VotePanel
+            players={players.filter((p) => p.isAlive && p.id !== myId)}
+            votes={votes}
+            myId={myId}
+            onVote={castVote}
+            phase={phase}
           />
-          <button onClick={sendMessage} disabled={!input.trim()} style={{ padding: '10px 16px', cursor: 'pointer' }}>
-            Send
-          </button>
-        </div>
-      )}
+        )}
+
+        {/* Chat input */}
+        {phase === 'discussion' && (
+          <div className="flex gap-2 mt-4">
+            <input
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
+              placeholder="Say something..."
+              maxLength={300}
+              className="flex-1 border border-mauve/25 rounded-xl px-4 py-2.5 text-ink bg-white focus:outline-none focus:border-mauve/60 transition text-sm placeholder:text-mauve/40"
+            />
+            <button
+              onClick={sendMessage}
+              disabled={!input.trim()}
+              className="px-5 py-2.5 bg-ink text-shell text-sm font-medium rounded-xl hover:bg-ink/90 transition disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Send
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

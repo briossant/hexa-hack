@@ -4,7 +4,7 @@ export default function Timer({ seconds }) {
   const urgent = seconds <= 10 && seconds > 0;
 
   return (
-    <span style={{ fontSize: 22, fontWeight: 'bold', color: urgent ? '#ff4d4f' : '#222', fontVariantNumeric: 'tabular-nums' }}>
+    <span className={`text-2xl font-bold tabular-nums tracking-tight ${urgent ? 'text-coral' : 'text-ink'}`}>
       {mins > 0 ? `${mins}:${String(secs).padStart(2, '0')}` : `${secs}s`}
     </span>
   );

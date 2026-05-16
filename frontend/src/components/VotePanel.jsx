@@ -6,10 +6,10 @@ export default function VotePanel({ players, votes, myId, onVote, phase }) {
   const label = phase === 'mayor_vote' ? 'Vote for Mayor' : 'Vote to Eliminate';
 
   return (
-    <div style={{ marginTop: 16, border: '1px solid #d9d9d9', borderRadius: 8, padding: 16 }}>
-      <h3 style={{ margin: '0 0 12px', fontSize: 15 }}>{label}</h3>
+    <div className="mt-4 bg-white border border-mauve/15 rounded-2xl p-5 shadow-sm">
+      <h3 className="text-sm font-semibold text-ink mb-3">{label}</h3>
 
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+      <div className="flex flex-wrap gap-2 mb-4">
         {players.map((p) => {
           const voteCount = Object.values(votes).filter((t) => t === p.id).length;
           const isMyVote = votes[myId] === p.id;
@@ -20,20 +20,19 @@ export default function VotePanel({ players, votes, myId, onVote, phase }) {
               key={p.id}
               onClick={() => !hasVoted && setSelected(p.id === selected ? null : p.id)}
               disabled={hasVoted}
-              style={{
-                padding: '7px 16px',
-                borderRadius: 20,
-                border: `2px solid ${isMyVote ? '#ff4d4f' : isSelected ? '#1890ff' : '#d9d9d9'}`,
-                background: isMyVote ? '#fff1f0' : isSelected ? '#e6f7ff' : 'white',
-                cursor: hasVoted ? 'default' : 'pointer',
-                fontSize: 13,
-              }}
+              className={[
+                'px-4 py-1.5 rounded-full text-sm border transition',
+                isMyVote
+                  ? 'border-coral bg-coral/5 text-coral font-medium'
+                  : isSelected
+                  ? 'border-coral text-ink'
+                  : 'border-mauve/20 text-ink hover:border-mauve/50',
+                hasVoted ? 'cursor-default' : 'cursor-pointer',
+              ].join(' ')}
             >
               {p.name}
               {voteCount > 0 && (
-                <span style={{ marginLeft: 6, color: '#ff4d4f', fontWeight: 'bold' }}>
-                  {voteCount}
-                </span>
+                <span className="ml-1.5 font-bold text-coral">{voteCount}</span>
               )}
             </button>
           );
@@ -42,22 +41,14 @@ export default function VotePanel({ players, votes, myId, onVote, phase }) {
 
       {!hasVoted ? (
         <button
-          onClick={() => { if (selected) { onVote(selected); } }}
+          onClick={() => selected && onVote(selected)}
           disabled={!selected}
-          style={{
-            padding: '8px 20px',
-            background: selected ? '#1890ff' : '#f5f5f5',
-            color: selected ? 'white' : '#bbb',
-            border: 'none',
-            borderRadius: 4,
-            cursor: selected ? 'pointer' : 'not-allowed',
-            fontSize: 14,
-          }}
+          className="px-5 py-2 bg-coral text-white text-sm font-medium rounded-xl transition hover:bg-coral/90 disabled:opacity-40 disabled:cursor-not-allowed"
         >
           Confirm Vote
         </button>
       ) : (
-        <p style={{ color: '#52c41a', margin: 0, fontSize: 13 }}>Vote cast. Waiting for others...</p>
+        <p className="text-sm text-sage font-medium">Vote cast — waiting for others...</p>
       )}
     </div>
   );

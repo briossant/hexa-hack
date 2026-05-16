@@ -3,7 +3,7 @@ import socket from '../socket';
 
 export default function Lobby({ onGameStart }) {
   const [name, setName] = useState('');
-  const [status, setStatus] = useState('idle'); // idle | queued
+  const [status, setStatus] = useState('idle');
   const [position, setPosition] = useState(0);
 
   useEffect(() => {
@@ -31,36 +31,45 @@ export default function Lobby({ onGameStart }) {
   };
 
   return (
-    <div style={{ padding: 40, maxWidth: 400, margin: '80px auto' }}>
-      <h1 style={{ marginBottom: 4 }}>Hunt the Bot</h1>
-      <p style={{ color: '#666', marginBottom: 24 }}>
-        Find the AIs among the players before they outnumber you.
-      </p>
+    <div className="min-h-screen bg-shell flex items-center justify-center px-4">
+      <div className="w-full max-w-sm">
+        <h1 className="text-4xl font-bold text-ink mb-1 tracking-tight">Hunt the Bot</h1>
+        <p className="text-mauve text-sm mb-10">
+          Find the AIs among the players before they outnumber you.
+        </p>
 
-      {status === 'idle' ? (
-        <>
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && joinQueue()}
-            placeholder="Your name"
-            maxLength={20}
-            style={{ display: 'block', width: '100%', padding: 10, marginBottom: 10, boxSizing: 'border-box', fontSize: 16 }}
-          />
-          <button
-            onClick={joinQueue}
-            disabled={!name.trim()}
-            style={{ width: '100%', padding: 10, fontSize: 16, cursor: 'pointer' }}
-          >
-            Join Queue
-          </button>
-        </>
-      ) : (
-        <div>
-          <p>Waiting for players... <strong>{position}</strong> in queue</p>
-          <p style={{ color: '#888', fontSize: 13 }}>Game starts when enough players join, or after 30 seconds.</p>
-        </div>
-      )}
+        {status === 'idle' ? (
+          <div className="flex flex-col gap-3">
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && joinQueue()}
+              placeholder="Your name"
+              maxLength={20}
+              className="w-full border border-mauve/25 rounded-xl px-4 py-3 text-ink bg-white focus:outline-none focus:border-mauve/60 transition placeholder:text-mauve/40"
+            />
+            <button
+              onClick={joinQueue}
+              disabled={!name.trim()}
+              className="w-full bg-coral text-white rounded-xl py-3 font-medium hover:bg-coral/90 transition disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Join Queue
+            </button>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center gap-2">
+              <span className="inline-block w-2 h-2 rounded-full bg-sage animate-pulse" />
+              <span className="text-ink font-medium">
+                Waiting for players&nbsp;&mdash;&nbsp;<strong>{position}</strong> in queue
+              </span>
+            </div>
+            <p className="text-mauve/60 text-xs">
+              Game starts when enough players join, or after 30 seconds.
+            </p>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

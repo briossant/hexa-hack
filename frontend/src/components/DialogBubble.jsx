@@ -2,26 +2,7 @@ export default function DialogBubble({ text }) {
   if (!text) return null;
 
   return (
-    <div
-      style={{
-        position: 'absolute',
-        bottom: 'calc(100% + 6px)',
-        left: '50%',
-        transform: 'translateX(-50%)',
-        background: 'white',
-        border: '1px solid #ddd',
-        borderRadius: 8,
-        padding: '4px 8px',
-        fontSize: 11,
-        whiteSpace: 'nowrap',
-        maxWidth: 140,
-        overflow: 'hidden',
-        textOverflow: 'ellipsis',
-        boxShadow: '0 1px 4px rgba(0,0,0,0.12)',
-        zIndex: 10,
-        pointerEvents: 'none',
-      }}
-    >
+    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-white border border-mauve/15 rounded-lg px-2.5 py-1 text-xs text-ink whitespace-nowrap max-w-36 overflow-hidden text-ellipsis shadow-sm z-10 pointer-events-none">
       {text}
     </div>
   );
