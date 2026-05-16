@@ -1,0 +1,434 @@
+asyncapi: 3.0.0
+
+info:
+  title: Hunt the Bot — WebSocket API
+  version: 1.0.0
+  description: |
+    Real-time WebSocket API for the Hunt the Bot social deduction game.
+    Built on Socket.io.
+
+    ## Connection
+    Connect to the server via Socket.io. All events use Socket.io's event system.
+    Each event name maps to a channel address below.
+
+    ## Flow
+    1. Client connects and emits `queue:join`
+    2. Server responds with `queue:joined`
+    3. When enough players are ready, server emits `game:start` to each player
+    4. Game proceeds through phases: `mayor_vote` → `discussion` → `vote` (repeats)
+    5. Each phase transition is announced via `phase:change`
+    6. Game ends with `game:over`
+
+servers:
+  development:
+    host: localhost:3001
+    protocol: ws
+    description: Local development server
+  production:
+    host: your-domain.com
+    protocol: wss
+    description: Production server
+
+# --- Channels (one per Socket.io event) ---
+
+channels:
+
+  queueJoin:
+    address: queue:join
+    description: Client requests to join the matchmaking queue.
+    messages:
+      queueJoin:
+        $ref: '#/components/messages/QueueJoin'
+
+  queueJoined:
+    address: queue:joined
+    description: Server confirms the client is in the queue.
+    messages:
+      queueJoined:
+        $ref: '#/components/messages/QueueJoined'
+
+  gameStart:
+    address: game:start
+    description: |
+      Server notifies the client that their game has started.
+      Each client receives their own `yourId` — do not broadcast this event.
+    messages:
+      gameStart:
+        $ref: '#/components/messages/GameStart'
+
+  phaseChange:
+    address: phase:change
+    description: |
+      Server broadcasts a phase transition to all players in the game.
+      Resets the client timer and updates the UI state.
+    messages:
+      phaseChange:
+        $ref: '#/components/messages/PhaseChange'
+
+  clientMessage:
+    address: game:message
+    description: Client sends a chat message during the discussion phase.
+    messages:
+      clientMessage:
+        $ref: '#/components/messages/SendMessage'
+
+  serverMessage:
+    address: game:message
+    description: |
+      Server broadcasts a chat message to all players in the game.
+      Used for both human and AI player messages.
+    messages:
+      serverMessage:
+        $ref: '#/components/messages/ReceivedMessage'
+
+  gameVote:
+    address: game:vote
+    description: Client casts a vote (elimination or mayor election).
+    messages:
+      gameVote:
+        $ref: '#/components/messages/CastVote'
+
+  voteCast:
+    address: vote:cast
+    description: Server broadcasts that a player has voted. Votes are public.
+    messages:
+      voteCast:
+        $ref: '#/components/messages/VoteCast'
+
+  mayorElected:
+    address: mayor:elected
+    description: Server announces the elected mayor after the mayor vote phase.
+    messages:
+      mayorElected:
+        $ref: '#/components/messages/MayorElected'
+
+  roundEnd:
+    address: round:end
+    description: |
+      Server announces the result of a vote phase.
+      Reveals the eliminated player's identity (human or AI).
+      `eliminated` is null if the vote was tied and unresolvable.
+    messages:
+      roundEnd:
+        $ref: '#/components/messages/RoundEnd'
+
+  gameOver:
+    address: game:over
+    description: |
+      Server announces the end of the game.
+      Reveals all player identities and the full game log for benchmarking.
+    messages:
+      gameOver:
+        $ref: '#/components/messages/GameOver'
+
+# --- Operations ---
+
+operations:
+
+  sendQueueJoin:
+    action: receive
+    summary: Join the matchmaking queue
+    channel:
+      $ref: '#/channels/queueJoin'
+
+  receiveQueueJoined:
+    action: send
+    summary: Confirm queue entry
+    channel:
+      $ref: '#/channels/queueJoined'
+
+  receiveGameStart:
+    action: send
+    summary: Notify client that game has started
+    channel:
+      $ref: '#/channels/gameStart'
+
+  receivePhaseChange:
+    action: send
+    summary: Broadcast phase transition to all players
+    channel:
+      $ref: '#/channels/phaseChange'
+
+  sendChatMessage:
+    action: receive
+    summary: Player sends a chat message
+    channel:
+      $ref: '#/channels/clientMessage'
+
+  receiveChatMessage:
+    action: send
+    summary: Broadcast a chat message to all players
+    channel:
+      $ref: '#/channels/serverMessage'
+
+  sendVote:
+    action: receive
+    summary: Player casts a vote
+    channel:
+      $ref: '#/channels/gameVote'
+
+  receiveVoteCast:
+    action: send
+    summary: Broadcast that a vote was cast
+    channel:
+      $ref: '#/channels/voteCast'
+
+  receiveMayorElected:
+    action: send
+    summary: Announce elected mayor
+    channel:
+      $ref: '#/channels/mayorElected'
+
+  receiveRoundEnd:
+    action: send
+    summary: Announce round result and eliminated player
+    channel:
+      $ref: '#/channels/roundEnd'
+
+  receiveGameOver:
+    action: send
+    summary: Announce game result
+    channel:
+      $ref: '#/channels/gameOver'
+
+# --- Components ---
+
+components:
+
+  messages:
+
+    QueueJoin:
+      summary: Join the queue
+      payload:
+        type: object
+        required: [name]
+        properties:
+          name:
+            type: string
+            maxLength: 20
+            description: Player display name
+
+    QueueJoined:
+      summary: Queue entry confirmed
+      payload:
+        type: object
+        properties:
+          playerId:
+            type: string
+            format: uuid
+            description: Assigned player ID — store this for the session
+          position:
+            type: integer
+            minimum: 1
+            description: Current position in the queue
+
+    GameStart:
+      summary: Game is starting
+      payload:
+        type: object
+        properties:
+          gameId:
+            type: string
+            format: uuid
+          yourId:
+            type: string
+            format: uuid
+            description: This client's player ID in the game
+          players:
+            type: array
+            description: All players in the game (AI identity hidden until revealed)
+            items:
+              $ref: '#/components/schemas/Player'
+
+    PhaseChange:
+      summary: Phase transition
+      payload:
+        type: object
+        required: [phase, duration]
+        properties:
+          phase:
+            $ref: '#/components/schemas/Phase'
+          duration:
+            type: integer
+            description: Phase duration in milliseconds
+            example: 120000
+          round:
+            type: integer
+            minimum: 1
+            description: Current round number (absent during mayor_vote)
+
+    SendMessage:
+      summary: Send a chat message
+      payload:
+        type: object
+        required: [text]
+        properties:
+          gameId:
+            type: string
+            format: uuid
+          text:
+            type: string
+            maxLength: 300
+
+    ReceivedMessage:
+      summary: A chat message from any player (human or AI)
+      payload:
+        type: object
+        properties:
+          id:
+            type: string
+            format: uuid
+          playerId:
+            type: string
+            format: uuid
+          playerName:
+            type: string
+          text:
+            type: string
+          timestamp:
+            type: integer
+            format: int64
+            description: Unix timestamp in milliseconds
+          round:
+            type: integer
+
+    CastVote:
+      summary: Cast a vote (elimination or mayor)
+      payload:
+        type: object
+        required: [targetId]
+        properties:
+          gameId:
+            type: string
+            format: uuid
+          targetId:
+            type: string
+            format: uuid
+            description: ID of the player being voted for
+
+    VoteCast:
+      summary: A vote was cast (public)
+      payload:
+        type: object
+        properties:
+          voterId:
+            type: string
+            format: uuid
+          targetId:
+            type: string
+            format: uuid
+
+    MayorElected:
+      summary: Mayor elected
+      payload:
+        type: object
+        properties:
+          playerId:
+            type: string
+            format: uuid
+          playerName:
+            type: string
+
+    RoundEnd:
+      summary: Round result
+      payload:
+        type: object
+        properties:
+          round:
+            type: integer
+          eliminated:
+            description: The eliminated player, or null if vote was unresolvably tied
+            oneOf:
+              - $ref: '#/components/schemas/EliminatedPlayer'
+              - type: 'null'
+          votes:
+            type: object
+            description: Full vote map — voterId to targetId
+            additionalProperties:
+              type: string
+              format: uuid
+
+    GameOver:
+      summary: Game ended
+      payload:
+        type: object
+        properties:
+          winner:
+            type: string
+            enum: [humans, ai]
+            description: |
+              humans — all AIs eliminated.
+              ai — AI count >= human count.
+          players:
+            type: array
+            description: All players with identities revealed
+            items:
+              $ref: '#/components/schemas/Player'
+          log:
+            type: array
+            description: Full round-by-round log for benchmarking
+            items:
+              $ref: '#/components/schemas/RoundLog'
+
+  schemas:
+
+    Player:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        isAI:
+          type: boolean
+          description: Hidden (undefined) until the player is eliminated or the game ends
+        isAlive:
+          type: boolean
+        isMayor:
+          type: boolean
+        modelName:
+          type: string
+          description: AI model identifier, only present for AI players after reveal
+
+    Phase:
+      type: string
+      enum:
+        - mayor_vote
+        - discussion
+        - vote
+        - ended
+      description: |
+        mayor_vote — players vote to elect a mayor (once, at game start)
+        discussion — open chat phase
+        vote — elimination vote phase
+        ended — game is over
+
+    EliminatedPlayer:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        isAI:
+          type: boolean
+
+    RoundLog:
+      type: object
+      description: Recorded data for one round — used for AI benchmarking
+      properties:
+        round:
+          type: integer
+        eliminated:
+          $ref: '#/components/schemas/EliminatedPlayer'
+        votes:
+          type: object
+          additionalProperties:
+            type: string
+            format: uuid
+        messages:
+          type: array
+          items:
+            $ref: '#/components/messages/ReceivedMessage/payload'
