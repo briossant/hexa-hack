@@ -62,7 +62,7 @@ export default function GameCircle({ players, myId, latestMessages, votes, phase
                   <path d="M0,0 L0,5 L5,2.5 z" fill="#ff6978" />
                 </marker>
                 <marker id="arrow-other" markerWidth="5" markerHeight="5" refX="4" refY="2.5" orient="auto">
-                  <path d="M0,0 L0,5 L5,2.5 z" fill="#6d435a60" />
+                  <path d="M0,0 L0,5 L5,2.5 z" fill="#a08898" />
                 </marker>
               </defs>
 
@@ -78,15 +78,21 @@ export default function GameCircle({ players, myId, latestMessages, votes, phase
                 const ny = dy / len;
                 const avatarR = 5;
                 const isMe = voterId === myId;
+                // Offset control point perpendicular to the line so back-to-back arrows don't overlap
+                const curveOffset = 6;
+                const x1 = from.x + nx * avatarR;
+                const y1 = from.y + ny * avatarR;
+                const x2 = to.x - nx * (avatarR + 3);
+                const y2 = to.y - ny * (avatarR + 3);
+                const mx = (x1 + x2) / 2 - ny * curveOffset;
+                const my = (y1 + y2) / 2 + nx * curveOffset;
                 return (
-                  <line
+                  <path
                     key={voterId}
-                    x1={from.x + nx * avatarR}
-                    y1={from.y + ny * avatarR}
-                    x2={to.x - nx * (avatarR + 3)}
-                    y2={to.y - ny * (avatarR + 3)}
-                    stroke={isMe ? '#ff6978' : '#6d435a50'}
-                    strokeWidth={isMe ? '1' : '0.7'}
+                    d={`M${x1},${y1} Q${mx},${my} ${x2},${y2}`}
+                    fill="none"
+                    stroke={isMe ? '#ff6978' : '#a08898'}
+                    strokeWidth={isMe ? '0.6' : '0.4'}
                     markerEnd={isMe ? 'url(#arrow-me)' : 'url(#arrow-other)'}
                   />
                 );
@@ -98,7 +104,6 @@ export default function GameCircle({ players, myId, latestMessages, votes, phase
               const angle = ((90 + (i / total) * 360) * Math.PI) / 180;
               const xPct = CX + RADIUS * Math.cos(angle);
               const yPct = CY + RADIUS * Math.sin(angle);
-              const voteCount = Object.values(votes).filter((t) => t === player.id).length;
               const msg = latestMessages[player.id];
               const isVoteable = isVotePhase && player.isAlive && player.id !== myId && !hasVoted;
               const isMyVoteTarget = myVoteTarget === player.id;
@@ -118,7 +123,6 @@ export default function GameCircle({ players, myId, latestMessages, votes, phase
                     player={player}
                     latestMessage={msg?.text}
                     latestMessageId={msg?.id}
-                    voteCount={voteCount}
                     isMe={player.id === myId}
                     isVoteable={isVoteable}
                     isMyVoteTarget={isMyVoteTarget}

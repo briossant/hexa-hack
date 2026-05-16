@@ -7,7 +7,6 @@ interface AvatarProps {
   player: PublicPlayer;
   latestMessage?: string;
   latestMessageId?: string;
-  voteCount: number;
   isMe: boolean;
   isVoteable?: boolean;
   isMyVoteTarget?: boolean;
@@ -18,7 +17,6 @@ export default function Avatar({
   player,
   latestMessage,
   latestMessageId,
-  voteCount,
   isMe,
   isVoteable,
   isMyVoteTarget,
@@ -79,9 +77,6 @@ export default function Avatar({
         </div>
       )}
 
-      {!isDead && voteCount > 0 && (
-        <div className="text-xs font-bold text-coral">{voteCount}×</div>
-      )}
     </div>
   );
 }
