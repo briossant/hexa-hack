@@ -242,7 +242,6 @@ export async function invokeAgent(
       ],
       tools: buildTools(aiPlayer, alivePlayers, phase),
       tool_choice: 'required',
-      temperature: 0.9,
     });
 
     const toolCall = response.choices[0].message.tool_calls?.[0];
