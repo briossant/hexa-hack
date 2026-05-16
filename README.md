@@ -1,20 +1,61 @@
-# Hackathon Paris
+# Hackathon Paris — Hunt the Bot
 
-Notre idee:
-Creer un jeu dont l'objectif est de demasquer qui sont les IA dans un groupe de
-joueurs. On peut s'inspirer du jeu "Loup Garou" mais ici avec les IA qui jouent
-le role des loups garous et les humains qui jouent le role des villageois. Les
-joueurs devront discuter entre eux pour essayer de trouver qui sont les IA et
-les eliminer avant que les IA ne les eliminent. Contrairement au jeu de loup
-garou, il n'y a pas de carte de role (et pas d'elimination de nuit?). Les joueurs
-devront simplement discuter entre eux et voter pour eliminer un joueur a chaque
-tour. Il faudra elire un maire en debut de partie qui aura pour role de
-departager les votes en cas d'egalite.
+## Concept
 
-Niveau UI:
-Une webapp avec des personages en cercles au milieu de l'ecran, notre personnage
-en bas du cercle, et chaque message qu'un joueur envoie s'affiche au dessus de
-son personnage dans une bulle de dialogue.
+A social deduction game where players must identify and eliminate the AIs hidden among them before the AIs reach parity with the humans.
 
-Une seconde dimention a ce projet est son cote test de turing, et aussi
-benchmark des differentes IA. 
+Inspired by Werewolf, but with a twist: instead of hidden roles hunting at night, all players (humans and AIs alike) discuss openly and vote to eliminate one player per round. The challenge for humans is to spot who is an AI through conversation alone — a real-time Turing test.
+
+As a secondary dimension, the game serves as an AI benchmark: different models can be pitted against each other to see which ones are hardest to detect, how long they survive, and what behavioral patterns give them away.
+
+---
+
+## Game Rules
+
+### Setup
+- A lobby of players is created, with more humans than AIs (exact ratio determined through playtesting).
+- At the start of the game, a **mayor** is elected through a dedicated vote round. The mayor's only power is to break ties during elimination votes. Any player — human or AI — can be elected mayor.
+
+### Each Round
+1. **Discussion phase**: All players discuss freely via text messages. A timer limits this phase (around 2-3 minutes).
+2. **Vote phase**: Each player votes to eliminate one other player (30 seconds). Votes are public and visible to everyone.
+3. **Elimination**: The player with the most votes is eliminated. In case of a tie, the mayor decides.
+4. The eliminated player's identity (human or AI) is revealed.
+
+### Win Conditions
+- **Humans win** if all AIs are eliminated.
+- **AIs win** if the number of AIs still in the game is equal to or greater than the number of humans remaining.
+
+### Night Phase (optional, to be tested)
+A night phase may be added where AIs can secretly eliminate a human between rounds, closer to the original Werewolf format. Both modes will be playtested to determine which is more fun and balanced.
+
+---
+
+## UI
+
+A webapp with:
+- Players displayed as avatars arranged in a circle.
+- The local player's avatar anchored at the bottom of the circle.
+- Each message a player sends appears as a speech bubble above their avatar.
+- A visible vote history panel showing who voted for whom each round.
+- A round timer displayed prominently during discussion and vote phases.
+
+---
+
+## AI Benchmark Dimension
+
+Every game is logged with structured data:
+- Which AI model played each bot role
+- Full message history per round
+- Vote choices per player per round
+- Whether each AI was caught and in which round
+
+This allows comparison across models: which ones blend in longest, which behavioral patterns betray them, and how detection rates change as players get more experienced.
+
+---
+
+## Open Questions / To Playtest
+- Optimal human-to-AI ratio
+- Discussion phase duration
+- Whether the night phase improves or complicates the experience
+- AI prompting strategy (passive blending vs. active misdirection)
