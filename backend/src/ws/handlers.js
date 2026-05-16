@@ -16,6 +16,17 @@ function registerHandlers(socket, io) {
     const game = getGame(gameId || socket.data.gameId);
     game?.castVote(socket.data.playerId, targetId);
   });
+
+  socket.on('game:rejoin', ({ gameId, playerId } = {}) => {
+    const game = getGame(gameId);
+    if (!game || !game.players.has(playerId) || game.phase === 'ended') {
+      return socket.emit('game:rejoin:failed');
+    }
+    socket.join(gameId);
+    socket.data.playerId = playerId;
+    socket.data.gameId = gameId;
+    socket.emit('game:rejoin:success', game.getSnapshot(playerId));
+  });
 }
 
 module.exports = { registerHandlers };

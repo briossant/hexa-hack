@@ -60,8 +60,12 @@ function _startGame(io) {
     socket.emit('game:start', {
       gameId,
       yourId: p.playerId,
-      // Strip internal socketId and isAI (hidden until eliminated or game over)
-      players: allPlayers.map(({ socketId: _s, isAI: _ai, ...rest }) => rest),
+      // Strip internal fields; isAI and modelName are revealed only on elimination
+      players: allPlayers.map(({ socketId: _s, isAI: _ai, modelName: _m, ...rest }) => ({
+        ...rest,
+        isAlive: true,
+        isMayor: false,
+      })),
     });
   });
 

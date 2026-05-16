@@ -7,10 +7,10 @@ import Timer from '../components/Timer';
 export default function Game({ gameData, onLeave }) {
   const { gameId, yourId: myId } = gameData;
   const [players, setPlayers] = useState(gameData.players);
-  const [phase, setPhase] = useState(null);
-  const [round, setRound] = useState(0);
-  const [messages, setMessages] = useState([]);
-  const [votes, setVotes] = useState({});
+  const [phase, setPhase] = useState(gameData.phase || null);
+  const [round, setRound] = useState(gameData.round || 0);
+  const [messages, setMessages] = useState(gameData.messages || []);
+  const [votes, setVotes] = useState(gameData.votes || {});
   const [timeLeft, setTimeLeft] = useState(0);
   const [input, setInput] = useState('');
   const [winner, setWinner] = useState(null);

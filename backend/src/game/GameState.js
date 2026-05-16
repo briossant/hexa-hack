@@ -177,6 +177,28 @@ class GameState {
     return true;
   }
 
+  // --- Snapshot (for rejoin) ---
+
+  getSnapshot(forPlayerId) {
+    return {
+      gameId: this.gameId,
+      yourId: forPlayerId,
+      phase: this.phase,
+      round: this.round,
+      messages: this.messages,
+      votes: Object.fromEntries(this.votes),
+      mayorId: this.mayorId,
+      players: [...this.players.values()].map((p) => ({
+        id: p.id,
+        name: p.name,
+        isAlive: p.isAlive,
+        isMayor: p.isMayor,
+        // Only reveal AI identity after elimination
+        ...(p.isAlive ? {} : { isAI: p.isAI, modelName: p.modelName }),
+      })),
+    };
+  }
+
   // --- AI scheduling ---
 
   _scheduleAIMessages() {
