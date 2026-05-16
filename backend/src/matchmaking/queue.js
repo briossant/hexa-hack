@@ -60,8 +60,8 @@ function _startGame(io) {
     socket.emit('game:start', {
       gameId,
       yourId: p.playerId,
-      // Strip internal socketId before sending to clients
-      players: allPlayers.map(({ socketId: _s, ...rest }) => rest),
+      // Strip internal socketId and isAI (hidden until eliminated or game over)
+      players: allPlayers.map(({ socketId: _s, isAI: _ai, ...rest }) => rest),
     });
   });
 

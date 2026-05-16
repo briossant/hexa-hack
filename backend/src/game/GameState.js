@@ -49,6 +49,7 @@ class GameState {
 
     if (phase === 'mayor_vote') {
       this.timer = setTimeout(() => this._endMayorVote(), duration);
+      this._scheduleAIVotes();
     } else if (phase === 'discussion') {
       this.timer = setTimeout(() => this._startPhase('vote'), duration);
       this._scheduleAIMessages();

@@ -5,7 +5,7 @@ import VotePanel from '../components/VotePanel';
 import Timer from '../components/Timer';
 
 export default function Game({ gameData, onLeave }) {
-  const { gameId, myId } = gameData;
+  const { gameId, yourId: myId } = gameData;
   const [players, setPlayers] = useState(gameData.players);
   const [phase, setPhase] = useState(null);
   const [round, setRound] = useState(0);
