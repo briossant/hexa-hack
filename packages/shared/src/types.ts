@@ -185,4 +185,38 @@ export interface GameAnalysisResponse {
   model_used: string;
   exposed_bots_count: number;
   forensic_reports: ExposedBotReport[];
+  cached?: boolean;
+}
+
+export interface PatternStat {
+  label: string;
+  headline: string;
+  description: string;
+  occurrences: number;
+  bots_affected: number;
+}
+
+export interface PatternStatsResponse {
+  total_games_analyzed: number;
+  total_bots_analyzed: number;
+  patterns: PatternStat[];
+}
+
+export interface ModelPatternStat {
+  label: string;
+  headline: string;
+  description: string;
+  occurrences: number;
+  bots_affected: number;
+  bots_affected_pct: number;
+}
+
+export interface ModelPatternStats {
+  model_name: string;
+  bots_count: number;
+  patterns: ModelPatternStat[];
+}
+
+export interface PatternStatsByModelResponse {
+  models: ModelPatternStats[];
 }

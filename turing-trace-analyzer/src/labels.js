@@ -27,3 +27,18 @@ export const LABEL_DESCRIPTIONS = {
   excessive_politeness: "Unnaturally polite for a casual game",
   suspicious_timing: "Responds too fast or too consistently",
 };
+
+export const LABEL_HEADLINES = {
+  too_generic_answer: "Generic non-committal answers",
+  overly_neutral_tone: "Unnaturally neutral tone",
+  avoids_accusation: "Avoids accusing anyone",
+  avoids_self_defense: "Does not defend themselves",
+  repetitive_language: "Repetitive phrasing",
+  too_logical_for_social_game: "Reasons like an engine, not a player",
+  contradiction_with_previous_message: "Contradicts earlier statements",
+  follows_majority_without_reason: "Follows the majority vote blindly",
+  unnatural_vote_behavior: "Voting pattern is off",
+  no_emotional_reaction: "No emotional reaction",
+  excessive_politeness: "Excessively polite for a casual game",
+  suspicious_timing: "Suspicious timing or pacing",
+};

@@ -1,4 +1,8 @@
 import { useState, useEffect } from 'react';
+import type {
+  PatternStatsByModelResponse,
+  ModelPatternStats,
+} from '@hexa-hack/shared';
 
 interface ModelStats {
   model_name: string;
@@ -34,6 +38,19 @@ function SortIcon({ active, dir }: { active: boolean; dir: SortDir }) {
   );
 }
 
+function Chevron({ open }: { open: boolean }) {
+  return (
+    <svg
+      width="12"
+      height="12"
+      viewBox="0 0 12 12"
+      className={`text-mauve/40 transition-transform duration-200 ${open ? 'rotate-90' : ''}`}
+    >
+      <polyline points="4,2 8,6 4,10" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 function SurvivalBar({ pct }: { pct: number | string }) {
   const value = Math.min(Number(pct), 100);
   return (
@@ -63,16 +80,65 @@ function SkeletonRow() {
   );
 }
 
+function ModelDetailPanel({ stats }: { stats: ModelPatternStats | null | undefined }) {
+  if (stats === undefined) {
+    return (
+      <div className="px-10 py-5 bg-mauve/[0.02] text-xs text-mauve/50">
+        Loading detection details…
+      </div>
+    );
+  }
+  if (stats === null || stats.bots_count === 0) {
+    return (
+      <div className="px-10 py-5 bg-mauve/[0.02] text-xs text-mauve/60">
+        No bots from this model have been analyzed yet.
+      </div>
+    );
+  }
+  if (stats.patterns.length === 0) {
+    return (
+      <div className="px-10 py-5 bg-mauve/[0.02] text-xs text-mauve/60">
+        {stats.bots_count} bot{stats.bots_count !== 1 ? 's' : ''} analyzed, no patterns surfaced.
+      </div>
+    );
+  }
+  return (
+    <div className="px-10 py-5 bg-mauve/[0.02]">
+      <p className="text-[10px] uppercase tracking-widest text-mauve/50 font-semibold mb-3">
+        Why it got caught · based on {stats.bots_count} eliminated bot
+        {stats.bots_count !== 1 ? 's' : ''}
+      </p>
+      <div className="flex flex-col gap-2">
+        {stats.patterns.map((p) => (
+          <div key={p.label} className="grid grid-cols-[1fr_120px_70px] gap-x-4 items-center" title={p.description}>
+            <span className="text-xs text-ink truncate">{p.headline}</span>
+            <div className="w-full h-1 rounded-full bg-mauve/10 overflow-hidden">
+              <div
+                className="h-full rounded-full bg-coral/70"
+                style={{ width: `${p.bots_affected_pct}%` }}
+              />
+            </div>
+            <div className="text-right text-xs tabular-nums">
+              <span className="font-semibold text-ink">{p.bots_affected_pct}%</span>
+              <span className="text-mauve/40 ml-1">
+                ({p.bots_affected}/{stats.bots_count})
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function sortModels(models: ModelStats[], key: SortKey, dir: SortDir): ModelStats[] {
   return [...models].sort((a, b) => {
     let va: number | string;
     let vb: number | string;
 
     if (key === 'rank') {
-      // Default order = mean_survival_rounds desc (original rank)
       va = Number(a.mean_survival_rounds);
       vb = Number(b.mean_survival_rounds);
-      // rank asc = highest survival first (same as default)
       return dir === 'asc' ? vb - va : va - vb;
     } else if (key === 'model_name') {
       va = a.model_name.toLowerCase();
@@ -93,6 +159,9 @@ export default function Leaderboard() {
   const [error, setError] = useState(false);
   const [sortKey, setSortKey] = useState<SortKey>('rank');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
+  const [expanded, setExpanded] = useState<string | null>(null);
+  // null = not loaded, Map entry = loaded; missing key = not analyzed
+  const [patternByModel, setPatternByModel] = useState<Map<string, ModelPatternStats> | null>(null);
 
   useEffect(() => {
     fetch('/api/analytics/models')
@@ -110,12 +179,27 @@ export default function Leaderboard() {
       });
   }, []);
 
+  useEffect(() => {
+    fetch('/analyzer/stats/patterns/by-model')
+      .then((r) => {
+        if (!r.ok) throw new Error('fetch failed');
+        return r.json();
+      })
+      .then((data: PatternStatsByModelResponse) => {
+        const map = new Map<string, ModelPatternStats>();
+        for (const m of data.models) map.set(m.model_name, m);
+        setPatternByModel(map);
+      })
+      .catch(() => {
+        setPatternByModel(new Map());
+      });
+  }, []);
+
   const handleSort = (key: SortKey) => {
     if (sortKey === key) {
       setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
     } else {
       setSortKey(key);
-      // Numeric columns default to desc (highest first), name/rank to asc
       setSortDir(key === 'model_name' || key === 'rank' ? 'asc' : 'desc');
     }
   };
@@ -159,8 +243,8 @@ export default function Leaderboard() {
 
   return (
     <div className="flex flex-col">
-      {/* Header */}
-      <div className="grid grid-cols-[36px_1fr_100px_60px_160px] gap-x-8 px-10 pt-7 pb-4">
+      <div className="grid grid-cols-[24px_36px_1fr_100px_60px_160px] gap-x-6 px-10 pt-7 pb-4">
+        <span />
         {colHeader('#', 'rank')}
         {colHeader('Model', 'model_name')}
         <div className="flex justify-end">{colHeader('Avg rounds', 'mean_survival_rounds')}</div>
@@ -173,42 +257,58 @@ export default function Leaderboard() {
           const rank = i + 1;
           const rankColor = RANK_COLORS[rank] ?? 'text-mauve/30';
           const isTop = rank === 1;
+          const isOpen = expanded === m.model_name;
 
           return (
-            <div
-              key={m.model_name}
-              className={[
-                'grid grid-cols-[36px_1fr_100px_60px_160px] gap-x-8 items-center px-10 py-5 transition-colors border-t border-mauve/8',
-                isTop ? 'bg-coral/[0.03]' : 'hover:bg-mauve/[0.02]',
-              ].join(' ')}
-            >
-              <span className={`text-xs font-bold tabular-nums ${rankColor}`}>
-                {rank}
-              </span>
+            <div key={m.model_name} className="border-t border-mauve/8">
+              <button
+                onClick={() => setExpanded(isOpen ? null : m.model_name)}
+                aria-expanded={isOpen}
+                className={[
+                  'w-full grid grid-cols-[24px_36px_1fr_100px_60px_160px] gap-x-6 items-center px-10 py-5 text-left transition-colors',
+                  isTop ? 'bg-coral/[0.03]' : 'hover:bg-mauve/[0.02]',
+                  isOpen ? 'bg-mauve/[0.03]' : '',
+                ].join(' ')}
+              >
+                <Chevron open={isOpen} />
 
-              <span className="font-mono text-sm text-ink truncate" title={m.model_name}>
-                {m.model_name}
-              </span>
-
-              <div className="text-right">
-                <span className="text-sm font-semibold text-ink tabular-nums">
-                  {Number(m.mean_survival_rounds).toFixed(1)}
+                <span className={`text-xs font-bold tabular-nums ${rankColor}`}>
+                  {rank}
                 </span>
-                <span className="text-[10px] text-mauve/40 ml-1">rounds</span>
-              </div>
 
-              <span className="text-sm text-mauve/50 tabular-nums text-right">
-                {m.games_played}
-              </span>
+                <span className="font-mono text-sm text-ink truncate" title={m.model_name}>
+                  {m.model_name}
+                </span>
 
-              <div className="flex justify-end">
-                <SurvivalBar pct={m.survival_rate_pct} />
-              </div>
+                <div className="text-right">
+                  <span className="text-sm font-semibold text-ink tabular-nums">
+                    {Number(m.mean_survival_rounds).toFixed(1)}
+                  </span>
+                  <span className="text-[10px] text-mauve/40 ml-1">rounds</span>
+                </div>
+
+                <span className="text-sm text-mauve/50 tabular-nums text-right">
+                  {m.games_played}
+                </span>
+
+                <div className="flex justify-end">
+                  <SurvivalBar pct={m.survival_rate_pct} />
+                </div>
+              </button>
+
+              {isOpen && (
+                <ModelDetailPanel
+                  stats={
+                    patternByModel === null
+                      ? undefined
+                      : patternByModel.get(m.model_name) ?? null
+                  }
+                />
+              )}
             </div>
           );
         })}
       </div>
-
     </div>
   );
 }

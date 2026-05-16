@@ -1,19 +1,4 @@
-import { LABEL_DESCRIPTIONS } from "./labels.js";
-
-const LABEL_HEADLINES = {
-  too_generic_answer: "Generic non-committal answers",
-  overly_neutral_tone: "Unnaturally neutral tone",
-  avoids_accusation: "Avoids accusing anyone",
-  avoids_self_defense: "Does not defend themselves",
-  repetitive_language: "Repetitive phrasing",
-  too_logical_for_social_game: "Reasons like an engine, not a player",
-  contradiction_with_previous_message: "Contradicts earlier statements",
-  follows_majority_without_reason: "Follows the majority vote blindly",
-  unnatural_vote_behavior: "Voting pattern is off",
-  no_emotional_reaction: "No emotional reaction",
-  excessive_politeness: "Excessively polite for a casual game",
-  suspicious_timing: "Suspicious timing or pacing",
-};
+import { LABEL_DESCRIPTIONS, LABEL_HEADLINES } from "./labels.js";
 
 const SEVERITY_TIERS = [
   { min: 4, label: "HIGH", verdict: "Strong indicators of AI-generated text and unnatural social behavior." },
