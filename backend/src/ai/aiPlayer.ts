@@ -75,9 +75,9 @@ ${phaseContext(phase)}
 Players still alive:
 ${playerList}
 
-Current votes this round:
+Current votes this round (YOUR vote is the line marked YOU — do not confuse your allies' votes with your own):
 ${voteLines}
-You have ${hasVoted ? 'already voted' : 'NOT voted yet — you must vote before the phase ends'}.
+You personally have ${hasVoted ? 'already voted' : 'NOT voted yet — you must vote before the phase ends'}.
 
 Your AI allies: ${aiAllies.length > 0 ? aiAllies.map((p) => p.name).join(', ') : 'none left'}
 Humans remaining: ${humans.length}
@@ -192,14 +192,15 @@ function buildTools(
       type: 'function',
       function: {
         name: 'send_message',
-        description: `Send a message in the group chat.
-MUST call this if: someone said your name, someone accused you, or you need to push a vote.
-Also call this if: something surprised you, you want to cast suspicion on a human, or the conversation needs steering.
-Do NOT message just to fill silence or if you already spoke recently with nothing new to add.`,
+        description: `Send a message in the group chat. Only call this if you have something genuinely new to say.
+MUST call this if: someone said your name directly or accused you.
+ONLY call this if: you have a specific new suspicion to raise, or the conversation needs a clear push.
+Do NOT call this if: you would just be agreeing, rephrasing what someone said, or filling silence. Use pass instead.
+Keep your message to 1 sentence max. Never explain at length.`,
         parameters: {
           type: 'object',
           properties: {
-            text: { type: 'string', description: 'Your message. Keep it natural and short.' },
+            text: { type: 'string', description: 'Your message. One sentence, 15 words max.' },
           },
           required: ['text'],
         },
@@ -239,8 +240,7 @@ ${others.map((p) => `- ${p.name}: "${p.id}"`).join('\n')}`,
     type: 'function',
     function: {
       name: 'pass',
-      description: `Do nothing this turn. Call this if the conversation doesn't need your input,
-you already spoke recently, or there's nothing meaningful to add. Prefer this over forcing a message.`,
+      description: `Do nothing this turn. This is the DEFAULT choice. Call this unless you have a clear, specific reason to send a message. When in doubt, pass.`,
       parameters: { type: 'object', properties: {} },
     },
   });
