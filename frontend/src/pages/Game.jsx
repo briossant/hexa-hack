@@ -18,11 +18,16 @@ export default function Game({ gameData, onLeave }) {
   const timerRef = useRef(null);
 
   useEffect(() => {
-    socket.on('phase:change', ({ phase, duration, round }) => {
+    // Initialise timer from the phase already in progress (game:start or rejoin snapshot).
+    if (gameData.phaseEndsAt) {
+      startTimer(gameData.phaseEndsAt - Date.now());
+    }
+
+    socket.on('phase:change', ({ phase, phaseEndsAt, round }) => {
       setPhase(phase);
       setVotes({});
       if (round !== undefined) setRound(round);
-      startTimer(duration);
+      startTimer(phaseEndsAt - Date.now());
     });
 
     socket.on('game:message', (msg) => {
@@ -67,10 +72,10 @@ export default function Game({ gameData, onLeave }) {
     };
   }, []);
 
-  function startTimer(duration) {
+  function startTimer(remainingMs) {
     clearInterval(timerRef.current);
-    const end = Date.now() + duration;
-    setTimeLeft(Math.ceil(duration / 1000));
+    const end = Date.now() + Math.max(0, remainingMs);
+    setTimeLeft(Math.ceil(Math.max(0, remainingMs) / 1000));
     timerRef.current = setInterval(() => {
       const remaining = Math.max(0, Math.ceil((end - Date.now()) / 1000));
       setTimeLeft(remaining);
@@ -137,8 +142,8 @@ export default function Game({ gameData, onLeave }) {
   }
 
   return (
-    <div className="min-h-screen bg-shell flex flex-col">
-      <div className="flex-1 w-full max-w-3xl mx-auto px-3 sm:px-4 py-3 sm:py-4 flex flex-col">
+    <div className="h-screen bg-shell flex flex-col overflow-hidden">
+      <div className="flex-1 min-h-0 w-full mx-auto px-3 sm:px-6 lg:px-10 py-3 sm:py-4 flex flex-col max-w-7xl">
         {/* Header */}
         <div className="flex justify-between items-center mb-3">
           <div className="flex items-center gap-2">
@@ -160,7 +165,9 @@ export default function Game({ gameData, onLeave }) {
         )}
 
         {/* Game circle */}
-        <GameCircle players={players} myId={myId} latestMessages={latestMessages} votes={votes} />
+        <div className="flex-1 min-h-0">
+          <GameCircle players={players} myId={myId} latestMessages={latestMessages} votes={votes} />
+        </div>
 
         {/* Vote panel */}
         {(phase === 'vote' || phase === 'mayor_vote') && (

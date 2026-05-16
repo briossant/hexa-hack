@@ -82,7 +82,17 @@ function _startGame(io) {
   const game = new GameState(gameId, allPlayers, io);
   activeGames.set(gameId, game);
 
-  // Notify and join each human socket to the game room
+  // Start the game first so we have the initial phase/timing to include in game:start.
+  // start() sets up timers silently (no phase:change emitted) and returns the initial state.
+  const initialState = game.start();
+
+  // Strip internal fields; isAI and modelName are revealed only on elimination
+  const publicPlayers = allPlayers.map(({ socketId: _s, isAI: _ai, modelName: _m, ...rest }) => ({
+    ...rest,
+    isAlive: true,
+    isMayor: false,
+  }));
+
   humanPlayers.forEach((p) => {
     const socket = io.sockets.sockets.get(p.socketId);
     if (!socket) return;
@@ -92,17 +102,14 @@ function _startGame(io) {
     socket.emit('game:start', {
       gameId,
       yourId: p.playerId,
-      // Strip internal fields; isAI and modelName are revealed only on elimination
-      players: allPlayers.map(({ socketId: _s, isAI: _ai, modelName: _m, ...rest }) => ({
-        ...rest,
-        isAlive: true,
-        isMayor: false,
-      })),
+      players: publicPlayers,
+      phase: initialState.phase,
+      round: initialState.round,
+      phaseEndsAt: initialState.phaseEndsAt,
     });
   });
 
   console.log(`Game ${gameId} started (${humanPlayers.length} humans, ${aiPlayers.length} AIs)`);
-  game.start();
 }
 
 function getGame(gameId) {

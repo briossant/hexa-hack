@@ -30,9 +30,9 @@ export default function Lobby({ onGameStart }) {
 
   return (
     <div className="min-h-screen bg-shell flex items-center justify-center px-4">
-      <div className="w-full max-w-sm">
-        <h1 className="text-4xl font-bold text-ink mb-1 tracking-tight">Hunt the Bot</h1>
-        <p className="text-mauve text-sm mb-10">
+      <div className="w-full max-w-lg">
+        <h1 className="text-5xl sm:text-6xl font-bold text-ink mb-2 tracking-tight">Hunt the Bot</h1>
+        <p className="text-mauve text-base mb-12">
           Find the AIs among the players before they outnumber you.
         </p>
 

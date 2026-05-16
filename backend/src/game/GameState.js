@@ -13,6 +13,7 @@ class GameState {
     this.io = io;
     this.phase = null;
     this.round = 0;
+    this.phaseEndsAt = null;
     this.messages = [];
     this.votes = new Map(); // voterId -> targetId
     this.mayorId = null;
@@ -25,8 +26,20 @@ class GameState {
 
   // --- Core ---
 
+  // Called once by queue.js after game:start is sent to clients.
+  // Sets up the initial phase silently (no phase:change emitted) so clients can
+  // initialise directly from the game:start payload without a race condition.
   start() {
-    this._startPhase('mayor_vote');
+    this.round = 1;
+    this.phase = 'discussion';
+    const duration = TIMINGS.discussion;
+    this.phaseEndsAt = Date.now() + duration;
+    this.timer = setTimeout(() => {
+      if (!this.mayorId) this._startPhase('mayor_vote');
+      else this._startPhase('vote');
+    }, duration);
+    this._scheduleAIMessages();
+    return { phase: this.phase, round: this.round, phaseEndsAt: this.phaseEndsAt };
   }
 
   emit(event, data) {
@@ -45,16 +58,21 @@ class GameState {
     this.votes.clear();
 
     const duration = TIMINGS[phase];
-    this.emit('phase:change', { phase, duration, round: this.round });
+    this.phaseEndsAt = Date.now() + duration;
+    this.emit('phase:change', { phase, phaseEndsAt: this.phaseEndsAt, round: this.round });
 
     if (phase === 'mayor_vote') {
       this.timer = setTimeout(() => this._endMayorVote(), duration);
+      this._scheduleAIVotes('mayor_vote');
     } else if (phase === 'discussion') {
-      this.timer = setTimeout(() => this._startPhase('vote'), duration);
+      this.timer = setTimeout(() => {
+        if (!this.mayorId) this._startPhase('mayor_vote');
+        else this._startPhase('vote');
+      }, duration);
       this._scheduleAIMessages();
     } else if (phase === 'vote') {
       this.timer = setTimeout(() => this._endVote(), duration);
-      this._scheduleAIVotes();
+      this._scheduleAIVotes('vote');
     }
   }
 
@@ -66,7 +84,7 @@ class GameState {
       mayor.isMayor = true;
       this.emit('mayor:elected', { playerId: winnerId, playerName: mayor.name });
     }
-    this._startRound();
+    this._startPhase('vote');
   }
 
   _startRound() {
@@ -190,6 +208,7 @@ class GameState {
       yourId: forPlayerId,
       phase: this.phase,
       round: this.round,
+      phaseEndsAt: this.phaseEndsAt,
       messages: this.messages,
       votes: Object.fromEntries(this.votes),
       mayorId: this.mayorId,
@@ -227,11 +246,11 @@ class GameState {
     });
   }
 
-  _scheduleAIVotes() {
+  _scheduleAIVotes(phase) {
     const aiPlayers = this.getAlivePlayers().filter((p) => p.isAI);
     aiPlayers.forEach((ai) => {
       setTimeout(async () => {
-        if (this.phase !== 'vote') return;
+        if (this.phase !== phase) return;
         const targetId = await generateAIVote(ai, this.getAlivePlayers());
         if (targetId) this.castVote(ai.id, targetId);
       }, Math.random() * 20_000 + 5_000);

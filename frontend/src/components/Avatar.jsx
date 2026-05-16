@@ -1,7 +1,7 @@
 import DialogBubble from './DialogBubble';
 
-// Avatar size scales with viewport: min 2.5rem, target 9vw, max 3.5rem
-const AVATAR_SIZE = 'clamp(2.5rem, 9vw, 3.5rem)';
+// Avatar size scales with both viewport width and height so it stays proportional on all screens
+const AVATAR_SIZE = 'clamp(2.5rem, min(8vw, 10vh), 5rem)';
 
 export default function Avatar({ player, latestMessage, voteCount, isMe }) {
   return (

@@ -17,9 +17,10 @@ export default function GameCircle({ players, myId, latestMessages, votes }) {
   const ordered = meIndex === -1 ? alive : [...alive.slice(meIndex), ...alive.slice(0, meIndex)];
 
   return (
-    <div>
-      {/* Circle arena */}
-      <div style={{ width: '100%', aspectRatio: ASPECT, position: 'relative' }}>
+    <div className="h-full flex flex-col">
+      {/* Circle arena - fills available height, width follows aspect ratio */}
+      <div className="flex-1 min-h-0 flex items-center justify-center">
+      <div style={{ height: '100%', minHeight: '180px', aspectRatio: ASPECT, maxWidth: '100%', position: 'relative' }}>
         {ordered.map((player, i) => {
           const angle = ((90 + (i / total) * 360) * Math.PI) / 180;
 
@@ -49,10 +50,11 @@ export default function GameCircle({ players, myId, latestMessages, votes }) {
           );
         })}
       </div>
+      </div>
 
       {/* Eliminated players */}
       {dead.length > 0 && (
-        <div className="flex gap-3 justify-center flex-wrap py-3 border-t border-mauve/10">
+        <div className="flex gap-3 justify-center flex-wrap py-2 border-t border-mauve/10 shrink-0">
           {dead.map((p) => (
             <div key={p.id} className="flex items-center gap-1.5 opacity-40">
               <img
