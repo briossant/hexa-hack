@@ -20,6 +20,7 @@ interface AlertState {
   title: string;
   body: string;
   accent: 'coral' | 'sage' | 'mauve';
+  duration?: number;
 }
 
 export default function Game({ gameData, onLeave }: GameProps) {
@@ -63,9 +64,9 @@ export default function Game({ gameData, onLeave }: GameProps) {
       setIsBreak(true);
       if (timerRef.current) clearInterval(timerRef.current);
       if (playerId && playerName) {
-        setAlert({ title: 'Mayor elected', body: `${playerName} is the new Mayor and will break ties.`, accent: 'mauve' });
+        setAlert({ title: 'Mayor elected', body: `${playerName} is the new Mayor and will break ties.`, accent: 'mauve', duration: 5000 });
       } else {
-        setAlert({ title: 'No mayor', body: 'The vote was tied — no mayor was elected this round.', accent: 'mauve' });
+        setAlert({ title: 'No mayor', body: 'The vote was tied — no mayor was elected this round.', accent: 'mauve', duration: 5000 });
       }
     });
 
@@ -82,9 +83,10 @@ export default function Game({ gameData, onLeave }: GameProps) {
           title: `${eliminated.name}${nameReveal} eliminated`,
           body: `They were a ${identity}.`,
           accent: eliminated.isAI ? 'sage' : 'coral',
+          duration: 5000,
         });
       } else {
-        setAlert({ title: 'Tied vote', body: 'No one was eliminated this round.', accent: 'mauve' });
+        setAlert({ title: 'Tied vote', body: 'No one was eliminated this round.', accent: 'mauve', duration: 5000 });
       }
     });
 
@@ -160,6 +162,7 @@ export default function Game({ gameData, onLeave }: GameProps) {
           title={alert.title}
           body={alert.body}
           accent={alert.accent}
+          duration={alert.duration}
           onClose={() => setAlert(null)}
         />
       )}
