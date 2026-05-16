@@ -1,4 +1,4 @@
-export type GamePhase = 'discussion' | 'mayor_vote' | 'vote' | 'ended';
+export type GamePhase = 'mayor_vote' | 'vote' | 'ended';
 export type WinnerType = 'humans' | 'ai';
 
 /** A player as visible to all clients. isAI/modelName/realName only present after elimination. */
@@ -69,8 +69,8 @@ export interface VoteCastPayload {
 }
 
 export interface MayorElectedPayload {
-  playerId: string;
-  playerName: string;
+  playerId: string | null;
+  playerName: string | null;
 }
 
 export interface RoundEndPayload {

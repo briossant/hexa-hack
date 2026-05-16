@@ -6,12 +6,13 @@ interface ChatPanelProps {
   players: PublicPlayer[];
   myId: string;
   phase: GamePhase;
+  isBreak: boolean;
   input: string;
   onInputChange: (v: string) => void;
   onSend: () => void;
 }
 
-export default function ChatPanel({ messages, players, myId, phase, input, onInputChange, onSend }: ChatPanelProps) {
+export default function ChatPanel({ messages, players, myId, phase, isBreak, input, onInputChange, onSend }: ChatPanelProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const playerMap = Object.fromEntries(players.map((p) => [p.id, p]));
 
@@ -51,7 +52,7 @@ export default function ChatPanel({ messages, players, myId, phase, input, onInp
         <div ref={bottomRef} />
       </div>
 
-      {phase === 'discussion' && (
+      {(phase === 'mayor_vote' || phase === 'vote') && !isBreak && (
         <div className="flex gap-2 p-3 border-t border-mauve/10 shrink-0">
           <input
             value={input}

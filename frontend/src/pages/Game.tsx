@@ -3,6 +3,7 @@ import socket from '../socket';
 import GameCircle from '../components/GameCircle';
 import Timer from '../components/Timer';
 import ChatPanel from '../components/ChatPanel';
+import Alert from '../components/Alert';
 import type {
   GameData,
   PublicPlayer,
@@ -15,6 +16,12 @@ interface GameProps {
   onLeave: () => void;
 }
 
+interface AlertState {
+  title: string;
+  body: string;
+  accent: 'coral' | 'sage' | 'mauve';
+}
+
 export default function Game({ gameData, onLeave }: GameProps) {
   const { gameId, yourId: myId } = gameData;
   const [players, setPlayers] = useState<PublicPlayer[]>(gameData.players);
@@ -25,7 +32,8 @@ export default function Game({ gameData, onLeave }: GameProps) {
   const [timeLeft, setTimeLeft] = useState(0);
   const [input, setInput] = useState('');
   const [winner, setWinner] = useState<'humans' | 'ai' | null>(null);
-  const [notification, setNotification] = useState<string | null>(null);
+  const [isBreak, setIsBreak] = useState(false);
+  const [alert, setAlert] = useState<AlertState | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
@@ -37,6 +45,8 @@ export default function Game({ gameData, onLeave }: GameProps) {
       setPhase(phase);
       setVotes({});
       setRound(round);
+      setIsBreak(false);
+      setAlert(null);
       startTimer(phaseEndsAt - Date.now());
     });
 
@@ -50,17 +60,31 @@ export default function Game({ gameData, onLeave }: GameProps) {
 
     socket.on('mayor:elected', ({ playerId, playerName }) => {
       setPlayers((prev) => prev.map((p) => ({ ...p, isMayor: p.id === playerId })));
-      notify(`${playerName} is the mayor`);
+      setIsBreak(true);
+      if (timerRef.current) clearInterval(timerRef.current);
+      if (playerId && playerName) {
+        setAlert({ title: 'Mayor elected', body: `${playerName} is the new Mayor and will break ties.`, accent: 'mauve' });
+      } else {
+        setAlert({ title: 'No mayor', body: 'The vote was tied — no mayor was elected this round.', accent: 'mauve' });
+      }
     });
 
     socket.on('round:end', ({ eliminated }) => {
+      setIsBreak(true);
+      if (timerRef.current) clearInterval(timerRef.current);
       if (eliminated) {
         setPlayers((prev) => prev.map((p) => applyElimination(p, eliminated)));
-        const reveal = eliminated.isAI ? `AI · ${eliminated.modelName ?? 'unknown model'}` : 'Human';
+        const identity = eliminated.isAI
+          ? `AI · ${eliminated.modelName ?? 'unknown model'}`
+          : 'Human';
         const nameReveal = eliminated.realName ? ` (${eliminated.realName})` : '';
-        notify(`${eliminated.name}${nameReveal} eliminated — ${reveal}`);
+        setAlert({
+          title: `${eliminated.name}${nameReveal} eliminated`,
+          body: `They were a ${identity}.`,
+          accent: eliminated.isAI ? 'sage' : 'coral',
+        });
       } else {
-        notify('No elimination this round (tied vote)');
+        setAlert({ title: 'Tied vote', body: 'No one was eliminated this round.', accent: 'mauve' });
       }
     });
 
@@ -69,6 +93,14 @@ export default function Game({ gameData, onLeave }: GameProps) {
       setPlayers(players);
       setWinner(winner);
       setPhase('ended');
+      setIsBreak(true);
+      setAlert({
+        title: winner === 'humans' ? 'Humans win!' : 'AIs win!',
+        body: winner === 'humans'
+          ? 'All AI players have been eliminated.'
+          : 'The AIs now equal or outnumber the humans.',
+        accent: winner === 'humans' ? 'sage' : 'coral',
+      });
     });
 
     return () => {
@@ -103,11 +135,6 @@ export default function Game({ gameData, onLeave }: GameProps) {
     }, 500);
   }
 
-  function notify(msg: string): void {
-    setNotification(msg);
-    setTimeout(() => setNotification(null), 4_000);
-  }
-
   function sendMessage(): void {
     if (!input.trim()) return;
     socket.emit('game:message', { gameId, text: input.trim() });
@@ -123,20 +150,33 @@ export default function Game({ gameData, onLeave }: GameProps) {
 
   const phaseBadge: Record<string, string> = {
     mayor_vote: 'bg-mauve/10 text-mauve',
-    discussion: 'bg-sage/15 text-sage',
     vote: 'bg-coral/10 text-coral',
   };
 
   return (
     <div className="h-screen bg-shell flex flex-col overflow-hidden">
+      {alert && (
+        <Alert
+          title={alert.title}
+          body={alert.body}
+          accent={alert.accent}
+          onClose={() => setAlert(null)}
+        />
+      )}
+
       <div className="flex-1 min-h-0 w-full mx-auto px-3 sm:px-6 lg:px-10 py-3 sm:py-4 flex flex-col max-w-7xl">
         {/* Header */}
         <div className="flex justify-between items-center mb-3 shrink-0">
           <div className="flex items-center gap-2">
             <span className="font-semibold text-ink text-sm sm:text-base">Round {round}</span>
-            {phase && phase !== 'ended' && (
+            {phase && phase !== 'ended' && !isBreak && (
               <span className={`text-xs px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full font-medium capitalize ${phaseBadge[phase] ?? 'bg-mauve/10 text-mauve'}`}>
                 {phase.replace('_', ' ')}
+              </span>
+            )}
+            {isBreak && !winner && (
+              <span className="text-xs px-2.5 py-1 rounded-full font-medium bg-mauve/10 text-mauve">
+                Break
               </span>
             )}
             {winner && (
@@ -145,15 +185,8 @@ export default function Game({ gameData, onLeave }: GameProps) {
               </span>
             )}
           </div>
-          {!winner && <Timer seconds={timeLeft} />}
+          {!winner && !isBreak && <Timer seconds={timeLeft} />}
         </div>
-
-        {/* Notification banner */}
-        {notification && (
-          <div className="bg-white border border-mauve/15 text-ink px-3 py-2 rounded-xl text-xs sm:text-sm mb-3 shadow-sm shrink-0">
-            {notification}
-          </div>
-        )}
 
         {/* Main content: circle (left/top) + chat (right/bottom) */}
         <div className="flex-1 min-h-0 flex flex-col lg:flex-row gap-3">
@@ -208,6 +241,7 @@ export default function Game({ gameData, onLeave }: GameProps) {
             players={players}
             myId={myId}
             phase={phase}
+            isBreak={isBreak}
             input={input}
             onInputChange={setInput}
             onSend={sendMessage}

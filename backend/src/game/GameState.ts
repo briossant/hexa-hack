@@ -15,14 +15,11 @@ import type {
 
 type IoServer = Server<ClientToServerEvents, ServerToClientEvents, Record<string, never>, SocketData>;
 
-const TIMINGS: Record<GamePhase, number> = {
-  mayor_vote: parseInt(process.env.VOTE_TIME_MS ?? '') || 30_000,
-  discussion: parseInt(process.env.DISCUSSION_TIME_MS ?? '') || 120_000,
-  vote: parseInt(process.env.VOTE_TIME_MS ?? '') || 30_000,
-  ended: 0,
-};
+// Both active phases last 2 minutes; break between phases is 10 seconds (handled inline).
+const PHASE_DURATION_MS = parseInt(process.env.PHASE_TIME_MS ?? '') || 120_000;
+const BREAK_DURATION_MS = 10_000;
 
-const AI_COOLDOWN_MS = 30_000; // min time between two messages from the same AI in discussion
+const AI_COOLDOWN_MS = 25_000; // min time between two messages from the same AI
 
 export class GameState {
   readonly gameId: string;
@@ -52,15 +49,8 @@ export class GameState {
 
   start(): { phase: GamePhase; round: number; phaseEndsAt: number } {
     this.round = 1;
-    this.phase = 'discussion';
-    const duration = TIMINGS.discussion;
-    this.phaseEndsAt = Date.now() + duration;
-    this.timer = setTimeout(() => {
-      if (!this.mayorId) this._startPhase('mayor_vote');
-      else this._startPhase('vote');
-    }, duration);
-    this._scheduleProactiveMessages();
-    return { phase: this.phase, round: this.round, phaseEndsAt: this.phaseEndsAt };
+    this._beginPhase('mayor_vote');
+    return { phase: this.phase!, round: this.round, phaseEndsAt: this.phaseEndsAt! };
   }
 
   private emit<E extends keyof ServerToClientEvents>(
@@ -77,47 +67,66 @@ export class GameState {
 
   // ─── Phase management ──────────────────────────────────────────────────────
 
-  private _startPhase(phase: GamePhase): void {
+  /** Immediately starts a phase: emits phase:change and arms the timer. */
+  private _beginPhase(phase: 'mayor_vote' | 'vote'): void {
     if (this.timer) clearTimeout(this.timer);
     this.phase = phase;
     this.votes.clear();
-
-    const duration = TIMINGS[phase];
-    this.phaseEndsAt = Date.now() + duration;
+    this.phaseEndsAt = Date.now() + PHASE_DURATION_MS;
     this.emit('phase:change', { phase, phaseEndsAt: this.phaseEndsAt, round: this.round });
 
     if (phase === 'mayor_vote') {
-      this.timer = setTimeout(() => this._endMayorVote(), duration);
-      this._scheduleAIVotes('mayor_vote');
-    } else if (phase === 'discussion') {
-      this.timer = setTimeout(() => {
-        if (!this.mayorId) this._startPhase('mayor_vote');
-        else this._startPhase('vote');
-      }, duration);
-      this._scheduleProactiveMessages();
-    } else if (phase === 'vote') {
-      this.timer = setTimeout(() => this._endVote(), duration);
-      this._scheduleAIVotes('vote');
+      this.timer = setTimeout(() => this._endMayorVote(), PHASE_DURATION_MS);
+    } else {
+      this.timer = setTimeout(() => this._endVote(), PHASE_DURATION_MS);
     }
+
+    // AIs participate in every active phase: they can chat and vote
+    this._scheduleAIVotes(phase);
+    this._scheduleProactiveMessages(phase);
   }
 
   private _endMayorVote(): void {
+    if (this.timer) clearTimeout(this.timer);
+
+    // Clear old mayor
+    if (this.mayorId) {
+      const prev = this.players.get(this.mayorId);
+      if (prev) prev.isMayor = false;
+    }
+
     const winnerId = this._resolveVote();
     if (winnerId) {
       this.mayorId = winnerId;
       const mayor = this.players.get(winnerId)!;
       mayor.isMayor = true;
-      this.emit('mayor:elected', { playerId: winnerId, playerName: mayor.name });
+    } else {
+      this.mayorId = null;
     }
-    this._startPhase('vote');
+
+    // Always emit result (null if tie) so client can show the break alert
+    this.emit('mayor:elected', {
+      playerId: winnerId ?? null,
+      playerName: winnerId ? (this.players.get(winnerId)?.name ?? null) : null,
+    });
+
+    // 10-second break before vote phase
+    setTimeout(() => this._beginPhase('vote'), BREAK_DURATION_MS);
   }
 
   private _startRound(): void {
     this.round++;
-    this._startPhase('discussion');
+    // Reset mayor for the new round
+    if (this.mayorId) {
+      const prev = this.players.get(this.mayorId);
+      if (prev) prev.isMayor = false;
+      this.mayorId = null;
+    }
+    this._beginPhase('mayor_vote');
   }
 
   private _endVote(): void {
+    if (this.timer) clearTimeout(this.timer);
     const eliminatedId = this._resolveVote();
     const voteSnapshot = Object.fromEntries(this.votes);
 
@@ -144,9 +153,11 @@ export class GameState {
 
     const winner = this._checkWin();
     if (winner) {
-      this._endGame(winner);
+      // Small delay so clients receive round:end before game:over
+      setTimeout(() => this._endGame(winner), 500);
     } else {
-      setTimeout(() => this._startRound(), 3_000);
+      // 10-second break before next round
+      setTimeout(() => this._startRound(), BREAK_DURATION_MS);
     }
   }
 
@@ -186,7 +197,7 @@ export class GameState {
   // ─── Public actions ────────────────────────────────────────────────────────
 
   addMessage(playerId: string, text: string): boolean {
-    if (this.phase !== 'discussion') return false;
+    if (this.phase !== 'mayor_vote' && this.phase !== 'vote') return false;
     const player = this.players.get(playerId);
     if (!player?.isAlive) return false;
 
@@ -219,7 +230,6 @@ export class GameState {
     this.emit('vote:cast', { voterId, targetId });
 
     if (this.votes.size >= this.getAlivePlayers().length) {
-      if (this.timer) clearTimeout(this.timer);
       if (this.phase === 'mayor_vote') this._endMayorVote();
       else this._endVote();
     }
@@ -265,29 +275,31 @@ export class GameState {
 
   // Debounce per-AI: collapses rapid human messages into a single agent invocation
   private _debounceAIReaction(): void {
+    if (this.phase !== 'mayor_vote' && this.phase !== 'vote') return;
+    const currentPhase = this.phase;
     for (const ai of this.getAlivePlayers().filter((p) => p.isAI)) {
       const existing = this.aiDebounceTimers.get(ai.id);
       if (existing) clearTimeout(existing);
       const delay = Math.random() * 7_000 + 3_000; // 3–10 s after last human message
       this.aiDebounceTimers.set(
         ai.id,
-        setTimeout(() => this._runAIAgent(ai, 'discussion'), delay),
+        setTimeout(() => this._runAIAgent(ai, currentPhase), delay),
       );
     }
   }
 
   // Proactive fallback: fire once per AI so they speak even if no human does
-  private _scheduleProactiveMessages(): void {
+  private _scheduleProactiveMessages(phase: 'mayor_vote' | 'vote'): void {
     for (const ai of this.getAlivePlayers().filter((p) => p.isAI)) {
-      const delay = Math.random() * 45_000 + 20_000; // 20–65 s into discussion
-      setTimeout(() => this._runAIAgent(ai, 'discussion'), delay);
+      const delay = Math.random() * 45_000 + 20_000; // 20–65 s into phase
+      setTimeout(() => this._runAIAgent(ai, phase), delay);
     }
   }
 
-  // Vote phase: each AI agent decides who to vote for (or passes)
+  // Each AI agent decides who to vote for (scheduled once per phase)
   private _scheduleAIVotes(phase: 'vote' | 'mayor_vote'): void {
     for (const ai of this.getAlivePlayers().filter((p) => p.isAI)) {
-      const delay = Math.random() * 20_000 + 5_000; // 5–25 s into vote phase
+      const delay = Math.random() * 50_000 + 30_000; // 30–80 s into phase
       setTimeout(() => this._runAIAgent(ai, phase), delay);
     }
   }
@@ -296,16 +308,14 @@ export class GameState {
   private async _runAIAgent(ai: InternalPlayer, phase: GamePhase): Promise<void> {
     if (this.phase !== phase) return;
 
-    // Cooldown: prevent the same AI from spamming messages during discussion
-    if (phase === 'discussion') {
-      const lastSpoke = this.aiLastSpoke.get(ai.id) ?? 0;
-      if (Date.now() - lastSpoke < AI_COOLDOWN_MS) return;
-    }
+    // Cooldown: prevent the same AI from spamming messages
+    const lastSpoke = this.aiLastSpoke.get(ai.id) ?? 0;
+    if (Date.now() - lastSpoke < AI_COOLDOWN_MS) return;
 
     const result = await invokeAgent(ai, this.messages, this.getAlivePlayers(), phase);
     if (!result) return;
 
-    if (result.name === 'send_message' && this.phase === 'discussion') {
+    if (result.name === 'send_message' && (this.phase === 'mayor_vote' || this.phase === 'vote')) {
       this.addMessage(ai.id, result.args.text);
       this.aiLastSpoke.set(ai.id, Date.now());
     } else if (result.name === 'vote' && (this.phase === 'vote' || this.phase === 'mayor_vote')) {
