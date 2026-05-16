@@ -8,6 +8,7 @@ export interface InternalPlayer {
   isMayor: boolean;
   socketId: string | null;
   modelName?: string;
+  realName?: string;
 }
 
 /** Shape of items stored in the matchmaking queue. */
@@ -15,6 +16,7 @@ export interface QueueEntry {
   socketId: string;
   playerId: string;
   anonymousName?: string;
+  realName?: string;
 }
 
 /** Type for socket.data attached to each connection. */

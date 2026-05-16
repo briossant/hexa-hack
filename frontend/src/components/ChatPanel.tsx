@@ -20,7 +20,7 @@ export default function ChatPanel({ messages, players, myId, phase, input, onInp
   }, [messages]);
 
   return (
-    <div className="flex flex-col bg-white border border-mauve/15 rounded-2xl overflow-hidden h-52 lg:h-auto lg:w-80 flex-none">
+    <div className="flex flex-col bg-white border border-mauve/15 rounded-2xl overflow-hidden h-56 lg:h-auto lg:w-[28rem] flex-none">
       <div className="px-3 py-2 border-b border-mauve/10 shrink-0">
         <span className="text-xs font-medium text-mauve">Chat</span>
       </div>

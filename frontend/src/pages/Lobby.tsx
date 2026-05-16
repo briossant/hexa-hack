@@ -9,6 +9,7 @@ interface LobbyProps {
 export default function Lobby({ onGameStart }: LobbyProps) {
   const [status, setStatus] = useState<'idle' | 'queued'>('idle');
   const [position, setPosition] = useState(0);
+  const [realName, setRealName] = useState('');
 
   useEffect(() => {
     socket.connect();
@@ -29,7 +30,7 @@ export default function Lobby({ onGameStart }: LobbyProps) {
   }, [onGameStart]);
 
   const joinQueue = () => {
-    socket.emit('queue:join');
+    socket.emit('queue:join', { realName: realName.trim() || undefined });
     setStatus('queued');
   };
 
@@ -43,6 +44,14 @@ export default function Lobby({ onGameStart }: LobbyProps) {
 
         {status === 'idle' ? (
           <div className="flex flex-col gap-3">
+            <input
+              value={realName}
+              onChange={(e) => setRealName(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && joinQueue()}
+              placeholder="Your real name (revealed when eliminated)"
+              maxLength={40}
+              className="w-full border border-mauve/25 rounded-xl px-4 py-3 text-ink bg-white focus:outline-none focus:border-mauve/60 transition placeholder:text-mauve/40"
+            />
             <button
               onClick={joinQueue}
               className="w-full bg-coral text-white rounded-xl py-3 font-medium hover:bg-coral/90 transition"

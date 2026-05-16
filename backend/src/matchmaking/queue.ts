@@ -30,9 +30,9 @@ const queue: QueueEntry[] = [];
 const activeGames = new Map<string, GameState>();
 let queueTimer: ReturnType<typeof setTimeout> | null = null;
 
-export function addToQueue(socketId: string, io: IoServer): void {
+export function addToQueue(socketId: string, io: IoServer, realName?: string): void {
   const playerId = uuidv4();
-  queue.push({ socketId, playerId });
+  queue.push({ socketId, playerId, realName });
 
   const socket = io.sockets.sockets.get(socketId);
   socket?.emit('queue:joined', { playerId, position: queue.length });
@@ -95,6 +95,7 @@ function _startGame(io: IoServer): void {
       avatarSeed: p.anonymousName!,
       isAI: false as const,
       socketId: p.socketId,
+      ...(p.realName ? { realName: p.realName } : {}),
     })),
     ...aiPlayers,
   ];

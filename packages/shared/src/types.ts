@@ -1,7 +1,7 @@
 export type GamePhase = 'discussion' | 'mayor_vote' | 'vote' | 'ended';
 export type WinnerType = 'humans' | 'ai';
 
-/** A player as visible to all clients. isAI/modelName only present after elimination. */
+/** A player as visible to all clients. isAI/modelName/realName only present after elimination. */
 export interface PublicPlayer {
   id: string;
   name: string;
@@ -10,6 +10,7 @@ export interface PublicPlayer {
   isMayor: boolean;
   isAI?: boolean;
   modelName?: string;
+  realName?: string;
 }
 
 export interface GameMessage {
@@ -26,6 +27,7 @@ export interface EliminatedPlayer {
   name: string;
   isAI: boolean;
   modelName?: string;
+  realName?: string;
 }
 
 export interface RoundLog {
@@ -134,7 +136,7 @@ export interface RejoinPayload {
 }
 
 export interface ClientToServerEvents {
-  'queue:join': () => void;
+  'queue:join': (payload: { realName?: string }) => void;
   'game:message': (payload: SendMessagePayload) => void;
   'game:vote': (payload: CastVotePayload) => void;
   'game:rejoin': (payload: RejoinPayload) => void;

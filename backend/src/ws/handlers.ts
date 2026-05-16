@@ -7,8 +7,8 @@ type IoServer = Server<ClientToServerEvents, ServerToClientEvents, Record<string
 type AppSocket = Socket<ClientToServerEvents, ServerToClientEvents, Record<string, never>, SocketData>;
 
 export function registerHandlers(socket: AppSocket, io: IoServer): void {
-  socket.on('queue:join', () => {
-    addToQueue(socket.id, io);
+  socket.on('queue:join', ({ realName } = {}) => {
+    addToQueue(socket.id, io, realName);
   });
 
   socket.on('game:message', ({ gameId, text }) => {

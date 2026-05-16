@@ -129,6 +129,7 @@ export class GameState {
         name: p.name,
         isAI: p.isAI,
         ...(p.isAI ? { modelName: p.modelName } : {}),
+        ...(p.realName ? { realName: p.realName } : {}),
       };
       this.log.push({
         round: this.round,
@@ -161,7 +162,7 @@ export class GameState {
   private _endGame(winner: 'humans' | 'ai'): void {
     if (this.timer) clearTimeout(this.timer);
     this.phase = 'ended';
-    this.emit('game:over', { winner, players: this._publicPlayers(), log: this.log });
+    this.emit('game:over', { winner, players: this._publicPlayers(true), log: this.log });
   }
 
   private _resolveVote(): string | null {
@@ -237,22 +238,26 @@ export class GameState {
       messages: this.messages,
       votes: Object.fromEntries(this.votes),
       mayorId: this.mayorId,
-      players: this._publicPlayers(forPlayerId),
+      players: this._publicPlayers(false, forPlayerId),
     };
   }
 
   // ─── Helpers ───────────────────────────────────────────────────────────────
 
-  private _publicPlayers(perspectiveId?: string): PublicPlayer[] {
+  private _publicPlayers(revealAll = false, perspectiveId?: string): PublicPlayer[] {
     return [...this.players.values()].map((p): PublicPlayer => ({
       id: p.id,
       name: p.name,
       avatarSeed: p.avatarSeed,
       isAlive: p.isAlive,
       isMayor: p.isMayor,
-      ...(p.isAlive && p.id !== perspectiveId
-        ? {}
-        : { isAI: p.isAI, ...(p.isAI ? { modelName: p.modelName } : {}) }),
+      ...(revealAll || !p.isAlive || p.id === perspectiveId
+        ? {
+            isAI: p.isAI,
+            ...(p.isAI ? { modelName: p.modelName } : {}),
+            ...(p.realName ? { realName: p.realName } : {}),
+          }
+        : {}),
     }));
   }
 
