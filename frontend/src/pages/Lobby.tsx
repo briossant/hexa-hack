@@ -1,8 +1,13 @@
 import { useState, useEffect } from 'react';
 import socket from '../socket';
+import type { GameStartPayload } from '@hexa-hack/shared';
 
-export default function Lobby({ onGameStart }) {
-  const [status, setStatus] = useState('idle');
+interface LobbyProps {
+  onGameStart: (data: GameStartPayload) => void;
+}
+
+export default function Lobby({ onGameStart }: LobbyProps) {
+  const [status, setStatus] = useState<'idle' | 'queued'>('idle');
   const [position, setPosition] = useState(0);
 
   useEffect(() => {

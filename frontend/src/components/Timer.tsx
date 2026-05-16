@@ -1,4 +1,8 @@
-export default function Timer({ seconds }) {
+interface TimerProps {
+  seconds: number;
+}
+
+export default function Timer({ seconds }: TimerProps) {
   const mins = Math.floor(seconds / 60);
   const secs = seconds % 60;
   const urgent = seconds <= 10 && seconds > 0;

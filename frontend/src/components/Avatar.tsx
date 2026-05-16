@@ -1,9 +1,17 @@
 import DialogBubble from './DialogBubble';
+import type { PublicPlayer } from '@hexa-hack/shared';
 
 // Avatar size scales with both viewport width and height so it stays proportional on all screens
 const AVATAR_SIZE = 'clamp(2.5rem, min(8vw, 10vh), 5rem)';
 
-export default function Avatar({ player, latestMessage, voteCount, isMe }) {
+interface AvatarProps {
+  player: PublicPlayer;
+  latestMessage?: string;
+  voteCount: number;
+  isMe: boolean;
+}
+
+export default function Avatar({ player, latestMessage, voteCount, isMe }: AvatarProps) {
   return (
     <div className="relative text-center" style={{ width: AVATAR_SIZE }}>
       <DialogBubble text={latestMessage} />
@@ -17,7 +25,7 @@ export default function Avatar({ player, latestMessage, voteCount, isMe }) {
         style={{ width: AVATAR_SIZE, height: AVATAR_SIZE }}
       >
         <img
-          src={`https://api.dicebear.com/9.x/pixel-art/svg?seed=${encodeURIComponent(player.avatarSeed ?? player.name)}`}
+          src={`https://api.dicebear.com/9.x/pixel-art/svg?seed=${encodeURIComponent(player.avatarSeed)}`}
           alt={player.name}
           className="w-full h-full object-cover"
         />

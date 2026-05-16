@@ -2,17 +2,18 @@ import { useState, useEffect } from 'react';
 import Lobby from './pages/Lobby';
 import Game from './pages/Game';
 import socket from './socket';
+import type { GameData, GameStartPayload, GameRejoinSuccessPayload } from '@hexa-hack/shared';
 
-function setUrl(gameId, playerId) {
+function setUrl(gameId: string, playerId: string): void {
   history.pushState(null, '', `?gameId=${gameId}&playerId=${playerId}`);
 }
 
-function clearUrl() {
+function clearUrl(): void {
   history.pushState(null, '', '/');
 }
 
 export default function App() {
-  const [gameData, setGameData] = useState(null);
+  const [gameData, setGameData] = useState<GameData | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -24,11 +25,10 @@ export default function App() {
       socket.connect();
 
       const tryRejoin = () => socket.emit('game:rejoin', { gameId, playerId });
-
       if (socket.connected) tryRejoin();
       else socket.once('connect', tryRejoin);
 
-      socket.once('game:rejoin:success', (data) => {
+      socket.once('game:rejoin:success', (data: GameRejoinSuccessPayload) => {
         setGameData(data);
         setLoading(false);
       });
@@ -38,11 +38,10 @@ export default function App() {
         setLoading(false);
       });
 
-      // Fallback: give up after 4s and show lobby
       const timeout = setTimeout(() => {
         clearUrl();
         setLoading(false);
-      }, 4000);
+      }, 4_000);
 
       return () => clearTimeout(timeout);
     } else {
@@ -50,12 +49,12 @@ export default function App() {
     }
   }, []);
 
-  function handleGameStart(data) {
+  function handleGameStart(data: GameStartPayload): void {
     setUrl(data.gameId, data.yourId);
     setGameData(data);
   }
 
-  function handleLeave() {
+  function handleLeave(): void {
     clearUrl();
     setGameData(null);
   }

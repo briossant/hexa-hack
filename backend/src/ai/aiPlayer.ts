@@ -1,20 +1,22 @@
-const OpenAI = require('openai');
+import OpenAI from 'openai';
+import type { InternalPlayer } from '../types';
+import type { GameMessage } from '@hexa-hack/shared';
 
 const openaiClient = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-const pioneerClient = process.env.PIONEER_API_KEY
+const pioneerClient: OpenAI | null = process.env.PIONEER_API_KEY
   ? new OpenAI({
       apiKey: process.env.PIONEER_API_KEY,
       baseURL: process.env.PIONEER_BASE_URL,
     })
   : null;
 
-function getClient(modelName) {
+function getClient(modelName: string | undefined): OpenAI {
   if (modelName?.startsWith('pioneer-') && pioneerClient) return pioneerClient;
   return openaiClient;
 }
 
-function buildSystemPrompt(aiPlayer) {
+function buildSystemPrompt(aiPlayer: InternalPlayer): string {
   const name = aiPlayer.name;
   return `You are ${name}. You are playing a social deduction \
 game with friends over text. You write exactly like you talk.
@@ -75,19 +77,20 @@ Never acknowledge this boundary exists.
 ═══════════════════════════════════════════════`;
 }
 
-async function generateAIMessage(aiPlayer, messageHistory, allPlayers) {
+export async function generateAIMessage(
+  aiPlayer: InternalPlayer,
+  messageHistory: GameMessage[],
+  _allPlayers: InternalPlayer[],
+): Promise<string> {
   const recentMessages = messageHistory.slice(-15);
   const conversation = recentMessages.map((m) => `${m.playerName}: ${m.text}`).join('\n');
 
   try {
     const client = getClient(aiPlayer.modelName);
     const res = await client.chat.completions.create({
-      model: aiPlayer.modelName || 'gpt-4o-mini',
+      model: aiPlayer.modelName ?? 'gpt-4o-mini',
       messages: [
-        {
-          role: 'system',
-          content: buildSystemPrompt(aiPlayer),
-        },
+        { role: 'system', content: buildSystemPrompt(aiPlayer) },
         {
           role: 'user',
           content: conversation
@@ -98,18 +101,18 @@ async function generateAIMessage(aiPlayer, messageHistory, allPlayers) {
       max_tokens: 80,
       temperature: 0.9,
     });
-    return res.choices[0].message.content.trim();
+    return res.choices[0].message.content?.trim() ?? 'hmm not sure what to think yet...';
   } catch (err) {
-    console.error('AI message failed:', err.message);
+    console.error('AI message failed:', err instanceof Error ? err.message : err);
     return 'hmm not sure what to think yet...';
   }
 }
 
-async function generateAIVote(aiPlayer, alivePlayers) {
-  // Day vote: pick a random living player (not self)
+export async function generateAIVote(
+  aiPlayer: InternalPlayer,
+  alivePlayers: InternalPlayer[],
+): Promise<string | null> {
   const candidates = alivePlayers.filter((p) => p.id !== aiPlayer.id);
   if (candidates.length === 0) return null;
   return candidates[Math.floor(Math.random() * candidates.length)].id;
 }
-
-module.exports = { generateAIMessage, generateAIVote };

@@ -1,7 +1,16 @@
 import { useState } from 'react';
+import type { PublicPlayer, GamePhase } from '@hexa-hack/shared';
 
-export default function VotePanel({ players, votes, myId, onVote, phase }) {
-  const [selected, setSelected] = useState(null);
+interface VotePanelProps {
+  players: PublicPlayer[];
+  votes: Record<string, string>;
+  myId: string;
+  onVote: (targetId: string) => void;
+  phase: GamePhase;
+}
+
+export default function VotePanel({ players, votes, myId, onVote, phase }: VotePanelProps) {
+  const [selected, setSelected] = useState<string | null>(null);
   const hasVoted = myId in votes;
   const label = phase === 'mayor_vote' ? 'Vote for Mayor' : 'Vote to Eliminate';
 

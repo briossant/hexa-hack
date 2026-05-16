@@ -1,4 +1,8 @@
-export default function DialogBubble({ text }) {
+interface DialogBubbleProps {
+  text?: string;
+}
+
+export default function DialogBubble({ text }: DialogBubbleProps) {
   if (!text) return null;
 
   return (

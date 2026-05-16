@@ -1,32 +1,36 @@
-const { v4: uuidv4 } = require('uuid');
-const { GameState } = require('../game/GameState');
+import { v4 as uuidv4 } from 'uuid';
+import { Server } from 'socket.io';
+import { GameState } from '../game/GameState';
+import type { QueueEntry, SocketData } from '../types';
+import type { ServerToClientEvents, ClientToServerEvents } from '@hexa-hack/shared';
 
-const PLAYERS_PER_GAME = parseInt(process.env.PLAYERS_PER_GAME) || 6;
-const AI_COUNT = parseInt(process.env.AI_COUNT) || 2;
+type IoServer = Server<ClientToServerEvents, ServerToClientEvents, Record<string, never>, SocketData>;
+
+const PLAYERS_PER_GAME = parseInt(process.env.PLAYERS_PER_GAME ?? '') || 6;
+const AI_COUNT = parseInt(process.env.AI_COUNT ?? '') || 2;
 const HUMAN_SLOTS = PLAYERS_PER_GAME - AI_COUNT;
 const QUEUE_TIMEOUT_MS = 30_000;
 
-const NAME_THEMES = {
-  colors:  ['Red', 'Blue', 'Green', 'Gold', 'Pink', 'Cyan', 'Jade', 'Teal', 'Rust', 'Amber', 'Rose', 'Slate', 'Ivory', 'Onyx', 'Pearl', 'Coral', 'Dusk', 'Navy', 'Sage', 'Lime'],
+const NAME_THEMES: Record<string, string[]> = {
+  colors: ['Red', 'Blue', 'Green', 'Gold', 'Pink', 'Cyan', 'Jade', 'Teal', 'Rust', 'Amber', 'Rose', 'Slate', 'Ivory', 'Onyx', 'Pearl', 'Coral', 'Dusk', 'Navy', 'Sage', 'Lime'],
   animals: ['Fox', 'Bear', 'Owl', 'Wolf', 'Crow', 'Seal', 'Elk', 'Frog', 'Lynx', 'Hawk', 'Deer', 'Swan', 'Mole', 'Hare', 'Pike', 'Crab', 'Bison', 'Vole', 'Ibis', 'Newt'],
 };
 
-let activePool = []; // set once per game, names from one chosen theme
-const usedNames = new Set();
+let activePool: string[] = [];
+const usedNames = new Set<string>();
 
-function generateAnonymousName() {
+function generateAnonymousName(): string {
   const available = activePool.filter((n) => !usedNames.has(n));
   const name = available[Math.floor(Math.random() * available.length)];
   usedNames.add(name);
   return name;
 }
 
-const queue = []; // { socketId, playerId, anonymousName }
-const activeGames = new Map(); // gameId -> GameState
+const queue: QueueEntry[] = [];
+const activeGames = new Map<string, GameState>();
+let queueTimer: ReturnType<typeof setTimeout> | null = null;
 
-let queueTimer = null;
-
-function addToQueue(socketId, io) {
+export function addToQueue(socketId: string, io: IoServer): void {
   const playerId = uuidv4();
   queue.push({ socketId, playerId });
 
@@ -34,7 +38,7 @@ function addToQueue(socketId, io) {
   socket?.emit('queue:joined', { playerId, position: queue.length });
 
   if (queue.length >= HUMAN_SLOTS) {
-    clearTimeout(queueTimer);
+    if (queueTimer) clearTimeout(queueTimer);
     _startGame(io);
   } else if (queue.length === 1) {
     queueTimer = setTimeout(() => {
@@ -43,17 +47,16 @@ function addToQueue(socketId, io) {
   }
 }
 
-function _startGame(io) {
+function _startGame(io: IoServer): void {
   const humanPlayers = queue.splice(0, HUMAN_SLOTS);
 
-  // Pick theme for this game, then assign names to everyone
   const themes = Object.values(NAME_THEMES);
   activePool = themes[Math.floor(Math.random() * themes.length)];
   usedNames.clear();
 
-  humanPlayers.forEach((p) => {
+  for (const p of humanPlayers) {
     p.anonymousName = generateAnonymousName();
-  });
+  }
 
   const aiPlayers = Array.from({ length: AI_COUNT }, () => {
     const anonymousName = generateAnonymousName();
@@ -61,7 +64,7 @@ function _startGame(io) {
       id: uuidv4(),
       name: anonymousName,
       avatarSeed: anonymousName,
-      isAI: true,
+      isAI: true as const,
       socketId: null,
       modelName: 'gpt-4o-mini',
     };
@@ -70,9 +73,9 @@ function _startGame(io) {
   const allPlayers = [
     ...humanPlayers.map((p) => ({
       id: p.playerId,
-      name: p.anonymousName,
-      avatarSeed: p.anonymousName,
-      isAI: false,
+      name: p.anonymousName!,
+      avatarSeed: p.anonymousName!,
+      isAI: false as const,
       socketId: p.socketId,
     })),
     ...aiPlayers,
@@ -82,20 +85,22 @@ function _startGame(io) {
   const game = new GameState(gameId, allPlayers, io);
   activeGames.set(gameId, game);
 
-  // Start the game first so we have the initial phase/timing to include in game:start.
-  // start() sets up timers silently (no phase:change emitted) and returns the initial state.
+  // start() sets up the initial phase silently and returns the state to bundle
+  // into game:start, ensuring clients have phase/round/phaseEndsAt before any
+  // phase:change event could arrive.
   const initialState = game.start();
 
-  // Strip internal fields; isAI and modelName are revealed only on elimination
-  const publicPlayers = allPlayers.map(({ socketId: _s, isAI: _ai, modelName: _m, ...rest }) => ({
-    ...rest,
+  const publicPlayers = allPlayers.map((p) => ({
+    id: p.id,
+    name: p.name,
+    avatarSeed: p.avatarSeed,
     isAlive: true,
     isMayor: false,
   }));
 
-  humanPlayers.forEach((p) => {
+  for (const p of humanPlayers) {
     const socket = io.sockets.sockets.get(p.socketId);
-    if (!socket) return;
+    if (!socket) continue;
     socket.join(gameId);
     socket.data.playerId = p.playerId;
     socket.data.gameId = gameId;
@@ -107,17 +112,15 @@ function _startGame(io) {
       round: initialState.round,
       phaseEndsAt: initialState.phaseEndsAt,
     });
-  });
+  }
 
   console.log(`Game ${gameId} started (${humanPlayers.length} humans, ${aiPlayers.length} AIs)`);
 }
 
-function getGame(gameId) {
+export function getGame(gameId: string): GameState | undefined {
   return activeGames.get(gameId);
 }
 
-function removeGame(gameId) {
+export function removeGame(gameId: string): void {
   activeGames.delete(gameId);
 }
-
-module.exports = { addToQueue, getGame, removeGame };

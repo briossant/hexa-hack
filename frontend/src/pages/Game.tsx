@@ -3,22 +3,32 @@ import socket from '../socket';
 import GameCircle from '../components/GameCircle';
 import VotePanel from '../components/VotePanel';
 import Timer from '../components/Timer';
+import type {
+  GameData,
+  PublicPlayer,
+  GameMessage,
+  EliminatedPlayer,
+} from '@hexa-hack/shared';
 
-export default function Game({ gameData, onLeave }) {
+interface GameProps {
+  gameData: GameData;
+  onLeave: () => void;
+}
+
+export default function Game({ gameData, onLeave }: GameProps) {
   const { gameId, yourId: myId } = gameData;
-  const [players, setPlayers] = useState(gameData.players);
-  const [phase, setPhase] = useState(gameData.phase || null);
-  const [round, setRound] = useState(gameData.round || 0);
-  const [messages, setMessages] = useState(gameData.messages || []);
-  const [votes, setVotes] = useState(gameData.votes || {});
+  const [players, setPlayers] = useState<PublicPlayer[]>(gameData.players);
+  const [phase, setPhase] = useState(gameData.phase);
+  const [round, setRound] = useState(gameData.round);
+  const [messages, setMessages] = useState<GameMessage[]>(gameData.messages ?? []);
+  const [votes, setVotes] = useState<Record<string, string>>(gameData.votes ?? {});
   const [timeLeft, setTimeLeft] = useState(0);
   const [input, setInput] = useState('');
-  const [winner, setWinner] = useState(null);
-  const [notification, setNotification] = useState(null);
-  const timerRef = useRef(null);
+  const [winner, setWinner] = useState<'humans' | 'ai' | null>(null);
+  const [notification, setNotification] = useState<string | null>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
-    // Initialise timer from the phase already in progress (game:start or rejoin snapshot).
     if (gameData.phaseEndsAt) {
       startTimer(gameData.phaseEndsAt - Date.now());
     }
@@ -26,7 +36,7 @@ export default function Game({ gameData, onLeave }) {
     socket.on('phase:change', ({ phase, phaseEndsAt, round }) => {
       setPhase(phase);
       setVotes({});
-      if (round !== undefined) setRound(round);
+      setRound(round);
       startTimer(phaseEndsAt - Date.now());
     });
 
@@ -43,15 +53,9 @@ export default function Game({ gameData, onLeave }) {
       notify(`${playerName} is the mayor`);
     });
 
-    socket.on('round:end', ({ eliminated, round }) => {
+    socket.on('round:end', ({ eliminated }) => {
       if (eliminated) {
-        setPlayers((prev) =>
-          prev.map((p) =>
-            p.id === eliminated.id
-              ? { ...p, isAlive: false, isAI: eliminated.isAI, modelName: eliminated.modelName }
-              : p
-          )
-        );
+        setPlayers((prev) => prev.map((p) => applyElimination(p, eliminated)));
         const reveal = eliminated.isAI ? `AI · ${eliminated.modelName ?? 'unknown model'}` : 'Human';
         notify(`${eliminated.name} eliminated — ${reveal}`);
       } else {
@@ -60,53 +64,60 @@ export default function Game({ gameData, onLeave }) {
     });
 
     socket.on('game:over', ({ winner, players }) => {
-      clearInterval(timerRef.current);
+      if (timerRef.current) clearInterval(timerRef.current);
       setPlayers(players);
       setWinner(winner);
     });
 
     return () => {
-      ['phase:change', 'game:message', 'vote:cast', 'mayor:elected', 'round:end', 'game:over'].forEach(
-        (e) => socket.off(e)
-      );
+      socket.off('phase:change');
+      socket.off('game:message');
+      socket.off('vote:cast');
+      socket.off('mayor:elected');
+      socket.off('round:end');
+      socket.off('game:over');
     };
   }, []);
 
-  function startTimer(remainingMs) {
-    clearInterval(timerRef.current);
+  function applyElimination(p: PublicPlayer, eliminated: EliminatedPlayer): PublicPlayer {
+    if (p.id !== eliminated.id) return p;
+    return { ...p, isAlive: false, isAI: eliminated.isAI, modelName: eliminated.modelName };
+  }
+
+  function startTimer(remainingMs: number): void {
+    if (timerRef.current) clearInterval(timerRef.current);
     const end = Date.now() + Math.max(0, remainingMs);
     setTimeLeft(Math.ceil(Math.max(0, remainingMs) / 1000));
     timerRef.current = setInterval(() => {
       const remaining = Math.max(0, Math.ceil((end - Date.now()) / 1000));
       setTimeLeft(remaining);
-      if (remaining === 0) clearInterval(timerRef.current);
+      if (remaining === 0 && timerRef.current) clearInterval(timerRef.current);
     }, 500);
   }
 
-  function notify(msg) {
+  function notify(msg: string): void {
     setNotification(msg);
-    setTimeout(() => setNotification(null), 4000);
+    setTimeout(() => setNotification(null), 4_000);
   }
 
-  function sendMessage() {
+  function sendMessage(): void {
     if (!input.trim()) return;
     socket.emit('game:message', { gameId, text: input.trim() });
     setInput('');
   }
 
-  function castVote(targetId) {
+  function castVote(targetId: string): void {
     socket.emit('game:vote', { gameId, targetId });
   }
 
-  // Latest message per player (for speech bubbles)
-  const latestMessages = {};
-  messages.forEach((m) => { latestMessages[m.playerId] = m.text; });
+  const latestMessages: Record<string, string> = {};
+  for (const m of messages) latestMessages[m.playerId] = m.text;
 
-  const phaseBadge = {
+  const phaseBadge: Record<string, string> = {
     mayor_vote: 'bg-mauve/10 text-mauve',
     discussion: 'bg-sage/15 text-sage',
     vote: 'bg-coral/10 text-coral',
-  }[phase] ?? 'bg-mauve/10 text-mauve';
+  };
 
   if (winner) {
     return (
@@ -149,7 +160,7 @@ export default function Game({ gameData, onLeave }) {
           <div className="flex items-center gap-2">
             <span className="font-semibold text-ink text-sm sm:text-base">Round {round}</span>
             {phase && (
-              <span className={`text-xs px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full font-medium capitalize ${phaseBadge}`}>
+              <span className={`text-xs px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full font-medium capitalize ${phaseBadge[phase] ?? 'bg-mauve/10 text-mauve'}`}>
                 {phase.replace('_', ' ')}
               </span>
             )}
