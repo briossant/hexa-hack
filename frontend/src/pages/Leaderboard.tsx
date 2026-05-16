@@ -8,11 +8,31 @@ interface ModelStats {
   survival_rate_pct: number | string;
 }
 
+type SortKey = 'rank' | 'model_name' | 'mean_survival_rounds' | 'games_played' | 'survival_rate_pct';
+type SortDir = 'asc' | 'desc';
+
 const RANK_COLORS: Record<number, string> = {
   1: 'text-amber-500',
   2: 'text-slate-400',
   3: 'text-orange-400',
 };
+
+function SortIcon({ active, dir }: { active: boolean; dir: SortDir }) {
+  return (
+    <svg
+      width="10"
+      height="10"
+      viewBox="0 0 10 10"
+      className={`inline-block ml-1 transition-opacity ${active ? 'opacity-80' : 'opacity-20'}`}
+    >
+      {dir === 'asc' || !active ? (
+        <polyline points="2,7 5,3 8,7" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      ) : (
+        <polyline points="2,3 5,7 8,3" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      )}
+    </svg>
+  );
+}
 
 function SurvivalBar({ pct }: { pct: number | string }) {
   const value = Math.min(Number(pct), 100);
@@ -43,10 +63,36 @@ function SkeletonRow() {
   );
 }
 
+function sortModels(models: ModelStats[], key: SortKey, dir: SortDir): ModelStats[] {
+  return [...models].sort((a, b) => {
+    let va: number | string;
+    let vb: number | string;
+
+    if (key === 'rank') {
+      // Default order = mean_survival_rounds desc (original rank)
+      va = Number(a.mean_survival_rounds);
+      vb = Number(b.mean_survival_rounds);
+      // rank asc = highest survival first (same as default)
+      return dir === 'asc' ? vb - va : va - vb;
+    } else if (key === 'model_name') {
+      va = a.model_name.toLowerCase();
+      vb = b.model_name.toLowerCase();
+      const cmp = va < vb ? -1 : va > vb ? 1 : 0;
+      return dir === 'asc' ? cmp : -cmp;
+    } else {
+      va = Number(a[key]);
+      vb = Number(b[key]);
+      return dir === 'asc' ? va - vb : vb - va;
+    }
+  });
+}
+
 export default function Leaderboard() {
   const [models, setModels] = useState<ModelStats[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [sortKey, setSortKey] = useState<SortKey>('rank');
+  const [sortDir, setSortDir] = useState<SortDir>('asc');
 
   useEffect(() => {
     fetch('/api/analytics/models')
@@ -63,6 +109,28 @@ export default function Leaderboard() {
         setLoading(false);
       });
   }, []);
+
+  const handleSort = (key: SortKey) => {
+    if (sortKey === key) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortKey(key);
+      // Numeric columns default to desc (highest first), name/rank to asc
+      setSortDir(key === 'model_name' || key === 'rank' ? 'asc' : 'desc');
+    }
+  };
+
+  const sorted = sortModels(models, sortKey, sortDir);
+
+  const colHeader = (label: string, key: SortKey, className = '') => (
+    <button
+      onClick={() => handleSort(key)}
+      className={`flex items-center gap-0.5 uppercase tracking-widest text-[10px] font-semibold transition-colors hover:text-mauve/70 ${sortKey === key ? 'text-mauve/60' : 'text-mauve/35'} ${className}`}
+    >
+      {label}
+      <SortIcon active={sortKey === key} dir={sortDir} />
+    </button>
+  );
 
   if (loading) {
     return (
@@ -92,16 +160,16 @@ export default function Leaderboard() {
   return (
     <div className="flex flex-col">
       {/* Header */}
-      <div className="grid grid-cols-[36px_1fr_100px_60px_160px] gap-x-8 px-10 pt-7 pb-4 text-[10px] uppercase tracking-widest font-semibold text-mauve/35">
-        <span>#</span>
-        <span>Model</span>
-        <span className="text-right">Avg rounds</span>
-        <span className="text-right">Games</span>
-        <span className="text-right pr-1">Survival rate</span>
+      <div className="grid grid-cols-[36px_1fr_100px_60px_160px] gap-x-8 px-10 pt-7 pb-4">
+        {colHeader('#', 'rank')}
+        {colHeader('Model', 'model_name')}
+        <div className="flex justify-end">{colHeader('Avg rounds', 'mean_survival_rounds')}</div>
+        <div className="flex justify-end">{colHeader('Games', 'games_played')}</div>
+        <div className="flex justify-end pr-1">{colHeader('Survival rate', 'survival_rate_pct')}</div>
       </div>
 
       <div className="flex flex-col">
-        {models.map((m, i) => {
+        {sorted.map((m, i) => {
           const rank = i + 1;
           const rankColor = RANK_COLORS[rank] ?? 'text-mauve/30';
           const isTop = rank === 1;
@@ -114,20 +182,14 @@ export default function Leaderboard() {
                 isTop ? 'bg-coral/[0.03]' : 'hover:bg-mauve/[0.02]',
               ].join(' ')}
             >
-              {/* Rank */}
               <span className={`text-xs font-bold tabular-nums ${rankColor}`}>
                 {rank}
               </span>
 
-              {/* Model name */}
-              <span
-                className="font-mono text-sm text-ink truncate"
-                title={m.model_name}
-              >
+              <span className="font-mono text-sm text-ink truncate" title={m.model_name}>
                 {m.model_name}
               </span>
 
-              {/* Avg survival */}
               <div className="text-right">
                 <span className="text-sm font-semibold text-ink tabular-nums">
                   {Number(m.mean_survival_rounds).toFixed(1)}
@@ -135,12 +197,10 @@ export default function Leaderboard() {
                 <span className="text-[10px] text-mauve/40 ml-1">rounds</span>
               </div>
 
-              {/* Games played */}
               <span className="text-sm text-mauve/50 tabular-nums text-right">
                 {m.games_played}
               </span>
 
-              {/* Survival bar */}
               <div className="flex justify-end">
                 <SurvivalBar pct={m.survival_rate_pct} />
               </div>
@@ -149,9 +209,6 @@ export default function Leaderboard() {
         })}
       </div>
 
-      <p className="text-[10px] text-mauve/25 text-center py-5">
-        Ranked by average rounds survived before detection
-      </p>
     </div>
   );
 }

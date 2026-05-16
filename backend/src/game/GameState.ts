@@ -130,13 +130,19 @@ export class GameState {
 
   private _startRound(): void {
     this.round++;
-    // Reset mayor for the new round
-    if (this.mayorId) {
-      const prev = this.players.get(this.mayorId);
-      if (prev) prev.isMayor = false;
-      this.mayorId = null;
+    const mayorAlive = this.mayorId && this.players.get(this.mayorId)?.isAlive;
+    if (mayorAlive) {
+      // Mayor is still alive — skip the election and go straight to elimination
+      this._beginPhase('vote');
+    } else {
+      // No mayor yet, or the mayor was just eliminated — elect a new one
+      if (this.mayorId) {
+        const prev = this.players.get(this.mayorId);
+        if (prev) prev.isMayor = false;
+        this.mayorId = null;
+      }
+      this._beginPhase('mayor_vote');
     }
-    this._beginPhase('mayor_vote');
   }
 
   private _endVote(): void {
