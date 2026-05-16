@@ -44,23 +44,28 @@ export default function Avatar({
     >
       {!isDead && <DialogBubble key={latestMessageId} text={latestMessage} />}
 
-      <div
-        className={`relative rounded-full overflow-hidden border-2 transition-all ${borderClass}`}
-        style={{
-          width: AVATAR_SIZE,
-          height: AVATAR_SIZE,
-          filter: isDead ? 'grayscale(1)' : undefined,
-          opacity: isDead ? 0.5 : 1,
-        }}
-      >
-        <img
-          src={`https://api.dicebear.com/9.x/pixel-art/svg?seed=${encodeURIComponent(player.avatarSeed)}`}
-          alt={player.name}
-          className="w-full h-full object-cover"
-        />
+      {/* Crown above avatar — outside overflow-hidden so it isn't clipped */}
+      <div className="relative inline-block">
         {player.isMayor && !isDead && (
-          <div className="absolute -top-1 -right-1 text-sm leading-none">👑</div>
+          <div className="absolute -top-4 left-1/2 -translate-x-1/2 text-base leading-none z-10 select-none">
+            👑
+          </div>
         )}
+        <div
+          className={`rounded-full overflow-hidden border-2 transition-all ${borderClass}`}
+          style={{
+            width: AVATAR_SIZE,
+            height: AVATAR_SIZE,
+            filter: isDead ? 'grayscale(1)' : undefined,
+            opacity: isDead ? 0.5 : 1,
+          }}
+        >
+          <img
+            src={`https://api.dicebear.com/9.x/pixel-art/svg?seed=${encodeURIComponent(player.avatarSeed)}`}
+            alt={player.name}
+            className="w-full h-full object-cover"
+          />
+        </div>
       </div>
 
       <div className={`text-xs mt-1 truncate ${isMe ? 'font-semibold text-ink' : isDead ? 'text-mauve/40' : 'text-mauve'}`}>

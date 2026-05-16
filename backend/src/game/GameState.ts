@@ -95,7 +95,18 @@ export class GameState {
       if (prev) prev.isMayor = false;
     }
 
-    const winnerId = this._resolveVote();
+    // Tally votes — on tie, pick randomly among leaders
+    const counts: Record<string, number> = {};
+    for (const targetId of this.votes.values()) {
+      counts[targetId] = (counts[targetId] ?? 0) + 1;
+    }
+    let winnerId: string | null = null;
+    if (Object.keys(counts).length > 0) {
+      const max = Math.max(...Object.values(counts));
+      const leaders = Object.keys(counts).filter((id) => counts[id] === max);
+      winnerId = leaders[Math.floor(Math.random() * leaders.length)];
+    }
+
     if (winnerId) {
       this.mayorId = winnerId;
       const mayor = this.players.get(winnerId)!;
@@ -104,7 +115,7 @@ export class GameState {
       this.mayorId = null;
     }
 
-    // Always emit result (null if tie) so client can show the break alert
+    // Always emit result so client can show the break alert
     this.emit('mayor:elected', {
       playerId: winnerId ?? null,
       playerName: winnerId ? (this.players.get(winnerId)?.name ?? null) : null,
