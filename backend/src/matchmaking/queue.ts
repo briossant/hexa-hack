@@ -58,6 +58,24 @@ function _startGame(io: IoServer): void {
     p.anonymousName = generateAnonymousName();
   }
 
+  const AI_MODELS: { model: string; weight: number }[] = [
+    { model: 'gpt-4o-mini',  weight: 40 },
+    { model: 'gpt-4.1-nano', weight: 25 },
+    { model: 'gpt-4.1-mini', weight: 20 },
+    { model: 'gpt-4o',       weight: 10 },
+    { model: 'o4-mini',      weight:  5 },
+  ];
+  const totalWeight = AI_MODELS.reduce((sum, m) => sum + m.weight, 0);
+
+  function pickModel(): string {
+    let r = Math.random() * totalWeight;
+    for (const { model, weight } of AI_MODELS) {
+      r -= weight;
+      if (r <= 0) return model;
+    }
+    return AI_MODELS[0].model;
+  }
+
   const aiPlayers = Array.from({ length: AI_COUNT }, () => {
     const anonymousName = generateAnonymousName();
     return {
@@ -66,7 +84,7 @@ function _startGame(io: IoServer): void {
       avatarSeed: anonymousName,
       isAI: true as const,
       socketId: null,
-      modelName: 'gpt-4o-mini',
+      modelName: pickModel(),
     };
   });
 
