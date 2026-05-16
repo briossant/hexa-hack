@@ -23,17 +23,14 @@ export interface AgentResult {
 
 function phaseContext(phase: GamePhase): string {
   if (phase === 'mayor_vote') {
-    return `What you should do: vote for mayor. Someone will ask or people will nominate themselves.
+    return `What you should do: chat, discuss who should be mayor, and cast your mayor vote.
 Pick a player (or yourself) and say you'd vote for them, or say who you think should do it.
-Be direct — this is literally a vote, not a debate. A short "i'd go with [name]" or "i can do it" is perfect.`;
-  }
-  if (phase === 'discussion') {
-    return `What you should do: chat, speculate, react to what people say.
-Try to figure out who the AIs are, or deflect suspicion if it's on you.`;
+You can also just chat about the game — figure out who the AIs are, deflect suspicion, react.`;
   }
   if (phase === 'vote') {
-    return `What you should do: vote to eliminate the player you find most suspicious.
-You'll use the vote tool — but if someone asks who you're voting for in chat, you can say.`;
+    return `What you should do: chat and vote to eliminate the player you find most suspicious.
+You'll use the vote tool — but you can also talk, speculate, react to what people say.
+Try to figure out who the AIs are, or deflect suspicion if it's on you.`;
   }
   return '';
 }
@@ -57,9 +54,9 @@ ${playerList}
 [GAME RULES — you know these, act accordingly]
 This is a social deduction game. Some players are AIs, the rest are humans. Nobody knows who is who.
 Each round has two phases:
-1. Discussion — everyone chats freely. Try to figure out who the AIs are.
-2. Vote — everyone votes to eliminate one player. Most votes wins. Ties are broken by the mayor.
-The mayor is elected once at the start by a group vote. Their only power is breaking vote ties.
+1. Mayor vote — everyone chats and votes for who should be mayor. Mayor breaks ties.
+2. Elimination vote — everyone chats and votes to eliminate one player. Most votes wins.
+The mayor is re-elected each round. Their only power is breaking elimination vote ties.
 Eliminated players are revealed as AI or human.
 Humans win if all AIs are eliminated. AIs win if they equal or outnumber humans.
 You already know all this — never ask about the rules, never act confused about how the game works.
@@ -133,7 +130,8 @@ function buildTools(
   const others = alivePlayers.filter((p) => p.id !== aiPlayer.id);
   const tools: OpenAI.Chat.ChatCompletionTool[] = [];
 
-  if (phase === 'discussion') {
+  // Chat is available in both active phases
+  if (phase === 'mayor_vote' || phase === 'vote') {
     tools.push({
       type: 'function',
       function: {
@@ -186,11 +184,8 @@ ${others.map((p) => `- ${p.name}: "${p.id}"`).join('\n')}`,
     type: 'function',
     function: {
       name: 'pass',
-      description:
-        phase === 'discussion'
-          ? `Do nothing this turn. Call this if the conversation doesn't need your input,
-you already spoke recently, or there's nothing meaningful to add. Prefer this over forcing a message.`
-          : `Skip your vote this round.`,
+      description: `Do nothing this turn. Call this if the conversation doesn't need your input,
+you already spoke recently, or there's nothing meaningful to add. Prefer this over forcing a message.`,
       parameters: { type: 'object', properties: {} },
     },
   });
