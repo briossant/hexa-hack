@@ -37,6 +37,11 @@ services:
       - "3002:3002"
     env_file:
       - ./turing-trace-analyzer/.env
+    environment:
+      DATABASE_URL: postgresql://hexahack:hexahack@postgres:5432/hexahack
+    depends_on:
+      postgres:
+        condition: service_healthy
     restart: unless-stopped
 
   frontend:
