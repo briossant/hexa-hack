@@ -38,6 +38,7 @@ export class GameState {
   private readonly aiDebounceTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private readonly aiLastSpoke = new Map<string, number>();
   private startedAt = 0;
+  private isEnding = false;
 
   constructor(gameId: string, players: Omit<InternalPlayer, 'isAlive' | 'isMayor'>[], io: IoServer) {
     this.gameId = gameId;
@@ -146,6 +147,7 @@ export class GameState {
   }
 
   private _endVote(): void {
+    if (this.isEnding) return;
     if (this.timer) clearTimeout(this.timer);
     const eliminatedId = this._resolveVote();
     const voteSnapshot = Object.fromEntries(this.votes);
@@ -173,8 +175,9 @@ export class GameState {
 
     const winner = this._checkWin();
     if (winner) {
+      this.isEnding = true;
       // Small delay so clients receive round:end before game:over
-      setTimeout(() => this._endGame(winner), 500);
+      setTimeout(() => void this._endGame(winner), 500);
     } else {
       // 10-second break before next round
       setTimeout(() => this._startRound(), BREAK_DURATION_MS);
@@ -190,20 +193,25 @@ export class GameState {
     return null;
   }
 
-  private _endGame(winner: 'humans' | 'ai'): void {
+  private async _endGame(winner: 'humans' | 'ai'): Promise<void> {
     if (this.timer) clearTimeout(this.timer);
     this.phase = 'ended';
-    this.emit('game:over', { winner, players: this._publicPlayers(true), log: this.log });
 
-    persistGame({
-      gameId: this.gameId,
-      winner,
-      startedAt: this.startedAt,
-      endedAt: Date.now(),
-      totalRounds: this.round,
-      players: [...this.players.values()],
-      log: this.log,
-    }).catch((err) => console.error('[db] Failed to persist game:', err));
+    try {
+      await persistGame({
+        gameId: this.gameId,
+        winner,
+        startedAt: this.startedAt,
+        endedAt: Date.now(),
+        totalRounds: this.round,
+        players: [...this.players.values()],
+        log: this.log,
+      });
+    } catch (err) {
+      console.error('[db] Failed to persist game before game:over:', err);
+    }
+
+    this.emit('game:over', { winner, players: this._publicPlayers(true), log: this.log });
   }
 
   private _resolveVote(): string | null {
@@ -227,6 +235,7 @@ export class GameState {
   // ─── Public actions ────────────────────────────────────────────────────────
 
   addMessage(playerId: string, text: string): boolean {
+    if (this.isEnding) return false;
     if (this.phase !== 'mayor_vote' && this.phase !== 'vote') return false;
     const player = this.players.get(playerId);
     if (!player?.isAlive) return false;
@@ -251,6 +260,7 @@ export class GameState {
   }
 
   castVote(voterId: string, targetId: string): boolean {
+    if (this.isEnding) return false;
     if (this.phase !== 'vote' && this.phase !== 'mayor_vote') return false;
     const voter = this.players.get(voterId);
     const target = this.players.get(targetId);
@@ -336,7 +346,7 @@ export class GameState {
 
   // Single agent invocation — handles tool result
   private async _runAIAgent(ai: InternalPlayer, phase: GamePhase, skipCooldown = false): Promise<void> {
-    if (this.phase !== phase) return;
+    if (this.isEnding || this.phase !== phase) return;
 
     // Cooldown: prevent the same AI from spamming messages — but never block a vote
     const hasVoted = this.votes.has(ai.id);
