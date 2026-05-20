@@ -231,6 +231,13 @@ npm install
 node src/server.js
 ```
 
+To prepare fine-tuning data from real games, first generate a human review file, then export only approved rows:
+
+```bash
+npm run export:training   # writes data/real-games-review.md with baseline suggestions
+npm run build:training    # writes data/real-games-training.jsonl from approved rows only
+```
+
 ---
 
 ## REST API

@@ -10,7 +10,6 @@ const pool = new Pool({
     process.env.DATABASE_URL ?? "postgresql://hexahack:hexahack@localhost:5432/hexahack",
 });
 
-const OUT_JSONL = "data/real-games-training.jsonl";
 const OUT_REVIEW = "data/real-games-review.md";
 const MIN_TEXT_LEN = 8; // skip "hi", "ok", typos like "67"
 
@@ -40,22 +39,11 @@ async function main() {
   }
 
   console.log("\nWriting outputs…");
-  await ensureDir(OUT_JSONL);
-  const jsonl = annotated
-    .filter((a) => a.label)
-    .map((a) =>
-      JSON.stringify({
-        text: a.text,
-        classifications: { bot_detection_patterns: a.label },
-      })
-    )
-    .join("\n");
-  await writeFile(OUT_JSONL, jsonl + "\n", "utf-8");
-  console.log(`  ✓ ${OUT_JSONL} (${jsonl.split("\n").filter(Boolean).length} examples)`);
-
+  await ensureDir(OUT_REVIEW);
   const md = renderReview(annotated);
   await writeFile(OUT_REVIEW, md, "utf-8");
   console.log(`  ✓ ${OUT_REVIEW}`);
+  console.log("  review required before JSONL export: run npm run build:training after approving rows");
 
   const counts = countLabels(annotated);
   console.log("\nLabel distribution:");
@@ -83,15 +71,18 @@ function renderReview(annotated) {
     "# Real games training data — review",
     "",
     `Auto-annotated with baseline GLiNER2 (\`${BASELINE_MODEL}\`).`,
-    "Edit the labels you disagree with, then export to JSONL.",
+    "Baseline labels are suggestions only. Do not fine-tune on this file directly.",
+    "Set Decision to `approve` only after human review, and set Reviewed label to the final label.",
+    "Use `reject` for false positives and `skip` for examples that should not enter training.",
+    "Then run `npm run build:training` to create `data/real-games-training.jsonl`.",
     "",
-    "| # | Model | Round | Label (baseline) | Message |",
-    "|---|-------|-------|------------------|---------|",
+    "| # | Decision | Reviewed label | Baseline label | Model | Round | Message |",
+    "|---|----------|----------------|----------------|-------|-------|---------|",
   ];
   annotated.forEach((a, i) => {
     const label = a.label ?? "_(none)_";
     const text = a.text.replace(/\|/g, "\\|").replace(/\n/g, " ");
-    lines.push(`| ${i + 1} | ${a.model_name} | r${a.round} | \`${label}\` | ${text} |`);
+    lines.push(`| ${i + 1} | review |  | \`${label}\` | ${a.model_name} | r${a.round} | ${text} |`);
   });
   return lines.join("\n") + "\n";
 }
