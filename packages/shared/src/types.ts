@@ -167,6 +167,9 @@ export interface ForensicReport {
   verdict: string;
   total_patterns: number;
   distinct_patterns: number;
+  analyzed_messages_count: number;
+  suspicious_messages_count: number;
+  severity_score: number;
   sections: ForensicSection[];
 }
 

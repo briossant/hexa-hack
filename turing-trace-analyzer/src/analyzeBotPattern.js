@@ -52,6 +52,7 @@ export async function analyzeGame(game, { threshold = 0.5, modelId = BASELINE_MO
   const target = game.suspected_player;
   const detectedPatterns = [];
   const previousTargetMessages = [];
+  let analyzedMessagesCount = 0;
 
   for (const round of game.rounds) {
     const messages = round.messages ?? [];
@@ -59,6 +60,7 @@ export async function analyzeGame(game, { threshold = 0.5, modelId = BASELINE_MO
     for (let messageIndex = 0; messageIndex < messages.length; messageIndex++) {
       const m = messages[messageIndex];
       if (m.player !== target) continue;
+      analyzedMessagesCount++;
 
       const res = await analyzeMessage({
         playerId: target,
@@ -96,6 +98,7 @@ export async function analyzeGame(game, { threshold = 0.5, modelId = BASELINE_MO
     game_id: game.game_id,
     suspected_player: target,
     ground_truth_is_bot: game.ground_truth_is_bot,
+    analyzed_messages_count: analyzedMessagesCount,
     detected_patterns: detectedPatterns,
   };
 }

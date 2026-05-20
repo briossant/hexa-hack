@@ -110,7 +110,7 @@ It uses **GLiNER** (Generalized Linear Inference for NER), a zero-shot NLP class
 | `excessive_politeness` | Unnaturally polite for a casual game |
 | `suspicious_timing` | Responds too consistently or too fast |
 
-The analyzer returns a **forensic report** per AI bot: a severity rating, a verdict, and per-label evidence with quotes and round numbers.
+The analyzer returns a **forensic report** per AI bot: a normalized severity rating, a verdict, and per-label evidence with quotes and round numbers.
 
 ### Database Schema
 

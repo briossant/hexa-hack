@@ -4,7 +4,7 @@ import { LABEL_DESCRIPTIONS, LABEL_HEADLINES } from "./labels.js";
 
 const { Pool } = pg;
 const DEFAULT_ANALYSIS_MODEL = BASELINE_MODEL;
-const ANALYSIS_VERSION = "contextual-v1";
+const ANALYSIS_VERSION = "contextual-v2";
 const LEGACY_ANALYSIS_VERSION = "message-only-v1";
 
 const pool = new Pool({
@@ -24,6 +24,9 @@ const SCHEMA = `
     verdict            TEXT NOT NULL,
     total_patterns     INTEGER NOT NULL,
     distinct_patterns  INTEGER NOT NULL,
+    analyzed_messages_count INTEGER NOT NULL DEFAULT 0,
+    suspicious_messages_count INTEGER NOT NULL DEFAULT 0,
+    severity_score     REAL NOT NULL DEFAULT 0,
     survived_rounds    INTEGER NOT NULL,
     was_eliminated     BOOLEAN NOT NULL DEFAULT true,
     analyzed_at        BIGINT NOT NULL,
@@ -48,6 +51,12 @@ const SCHEMA = `
 
   ALTER TABLE analyzer_reports
     ADD COLUMN IF NOT EXISTS was_eliminated BOOLEAN NOT NULL DEFAULT true;
+  ALTER TABLE analyzer_reports
+    ADD COLUMN IF NOT EXISTS analyzed_messages_count INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE analyzer_reports
+    ADD COLUMN IF NOT EXISTS suspicious_messages_count INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE analyzer_reports
+    ADD COLUMN IF NOT EXISTS severity_score REAL NOT NULL DEFAULT 0;
   ALTER TABLE analyzer_reports
     ADD COLUMN IF NOT EXISTS analysis_version TEXT;
   UPDATE analyzer_reports
@@ -153,8 +162,9 @@ export async function saveBotReport({ gameId, bot, report, modelUsed }) {
       `INSERT INTO analyzer_reports (
          game_id, player_id, player_name, model_name, model_used, analysis_version,
          severity, verdict, total_patterns, distinct_patterns,
+         analyzed_messages_count, suspicious_messages_count, severity_score,
          survived_rounds, was_eliminated, analyzed_at
-       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
        ON CONFLICT (game_id, player_id, model_used) DO NOTHING`,
       [
         gameId,
@@ -167,6 +177,9 @@ export async function saveBotReport({ gameId, bot, report, modelUsed }) {
         report.verdict,
         report.total_patterns,
         report.distinct_patterns,
+        report.analyzed_messages_count,
+        report.suspicious_messages_count,
+        report.severity_score,
         bot.survived_rounds,
         bot.was_eliminated,
         Date.now(),
@@ -182,9 +195,12 @@ export async function saveBotReport({ gameId, bot, report, modelUsed }) {
            verdict = $8,
            total_patterns = $9,
            distinct_patterns = $10,
-           survived_rounds = $11,
-           was_eliminated = $12,
-           analyzed_at = $13
+           analyzed_messages_count = $11,
+           suspicious_messages_count = $12,
+           severity_score = $13,
+           survived_rounds = $14,
+           was_eliminated = $15,
+           analyzed_at = $16
        WHERE game_id = $1 AND player_id = $2 AND model_used = $3`,
       [
         gameId,
@@ -197,6 +213,9 @@ export async function saveBotReport({ gameId, bot, report, modelUsed }) {
         report.verdict,
         report.total_patterns,
         report.distinct_patterns,
+        report.analyzed_messages_count,
+        report.suspicious_messages_count,
+        report.severity_score,
         bot.survived_rounds,
         bot.was_eliminated,
         Date.now(),
@@ -367,6 +386,9 @@ function rowsToGameAnalysis(reportRows, evidenceRows) {
         verdict: r.verdict,
         total_patterns: r.total_patterns,
         distinct_patterns: r.distinct_patterns,
+        analyzed_messages_count: r.analyzed_messages_count,
+        suspicious_messages_count: r.suspicious_messages_count,
+        severity_score: r.severity_score,
         sections,
       },
     };
