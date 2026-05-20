@@ -205,6 +205,7 @@ export interface PatternStat {
 }
 
 export interface PatternStatsResponse {
+  model_used: string;
   total_games_analyzed: number;
   total_bots_analyzed: number;
   patterns: PatternStat[];
@@ -226,5 +227,6 @@ export interface ModelPatternStats {
 }
 
 export interface PatternStatsByModelResponse {
+  model_used: string;
   models: ModelPatternStats[];
 }

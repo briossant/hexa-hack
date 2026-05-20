@@ -20,40 +20,43 @@ const PORT = process.env.PORT ?? 3002;
 
 const server = createServer(async (req, res) => {
   try {
-    if (req.method === "GET" && req.url === "/health") {
+    const url = new URL(req.url ?? "/", "http://localhost");
+
+    if (req.method === "GET" && url.pathname === "/health") {
       return json(res, 200, { status: "ok" });
     }
 
-    if (req.method === "GET" && req.url === "/games") {
+    if (req.method === "GET" && url.pathname === "/games") {
       const games = await listGames();
       return json(res, 200, { games });
     }
 
-    if (req.method === "GET" && req.url === "/stats/patterns/by-model") {
-      const byModel = await getPatternStatsByModel();
-      return json(res, 200, { models: byModel.map(decorateModelStats) });
+    if (req.method === "GET" && url.pathname === "/stats/patterns/by-model") {
+      const modelId = resolveAnalysisModel(url.searchParams.get("model"));
+      const byModel = await getPatternStatsByModel(modelId);
+      return json(res, 200, { model_used: modelId, models: byModel.map(decorateModelStats) });
     }
 
-    if (req.method === "GET" && req.url?.startsWith("/stats/patterns")) {
-      const stats = await getPatternStats();
-      return json(res, 200, decoratePatternStats(stats));
+    if (req.method === "GET" && url.pathname === "/stats/patterns") {
+      const modelId = resolveAnalysisModel(url.searchParams.get("model"));
+      const stats = await getPatternStats(modelId);
+      return json(res, 200, { model_used: modelId, ...decoratePatternStats(stats) });
     }
 
-    const analyzeMatch = req.url?.match(/^\/analyze\/([\w-]+)(?:\?(.*))?$/);
+    const analyzeMatch = url.pathname.match(/^\/analyze\/([\w-]+)$/);
     if (req.method === "POST" && analyzeMatch) {
       const gameId = analyzeMatch[1];
-      const params = new URLSearchParams(analyzeMatch[2] ?? "");
-      const modelId = params.get("model") === "finetuned" ? FINETUNED_MODEL : BASELINE_MODEL;
+      const modelId = resolveAnalysisModel(url.searchParams.get("model"));
 
       const result = await analyzeGameById(gameId, modelId);
       if (!result) return json(res, 404, { error: `game ${gameId} not found` });
       return json(res, 200, result);
     }
 
-    if (req.method === "POST" && req.url === "/analyze") {
+    if (req.method === "POST" && url.pathname === "/analyze") {
       const body = await readBody(req);
       const game = JSON.parse(body);
-      const modelId = req.headers["x-model"] === "finetuned" ? FINETUNED_MODEL : BASELINE_MODEL;
+      const modelId = resolveAnalysisModel(String(req.headers["x-model"] ?? ""));
       const analyzed = await analyzeGame(game, { modelId });
       const report = generateReport(analyzed);
       return json(res, 200, report);
@@ -72,7 +75,7 @@ async function analyzeGameById(gameId, modelId) {
   if (!gameData) return null;
 
   const analyzableBots = getAnalyzableBots(gameData);
-  const cached = await loadGameReports(gameId);
+  const cached = await loadGameReports(gameId, modelId);
   const cachedByPlayer = new Map((cached?.reports ?? []).map((r) => [r.player_id, r]));
   const reports = [];
   let newlyAnalyzedCount = 0;
@@ -105,7 +108,7 @@ async function analyzeGameById(gameId, modelId) {
     game_id: gameData.game.game_id,
     winner: gameData.game.winner,
     total_rounds: gameData.game.total_rounds,
-    model_used: cached?.model_used ?? modelId,
+    model_used: modelId,
     analyzed_bots_count: analyzableBots.length,
     eliminated_bots_count: eliminatedBotsCount,
     bot_reports: reports,
@@ -151,7 +154,7 @@ async function runBackfill() {
   try {
     const [endedIds, fullyAnalyzedIds] = await Promise.all([
       listEndedGameIds(),
-      listFullyAnalyzedGameIds(),
+      listFullyAnalyzedGameIds(BASELINE_MODEL),
     ]);
     const fullyAnalyzedSet = new Set(fullyAnalyzedIds);
     const pending = endedIds.filter((id) => !fullyAnalyzedSet.has(id));
@@ -198,6 +201,10 @@ function readBody(req) {
 function json(res, status, payload) {
   res.writeHead(status, { "Content-Type": "application/json" });
   res.end(JSON.stringify(payload));
+}
+
+function resolveAnalysisModel(value) {
+  return value === "finetuned" ? FINETUNED_MODEL : BASELINE_MODEL;
 }
 
 async function main() {

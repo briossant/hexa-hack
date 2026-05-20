@@ -254,9 +254,11 @@ Returns aggregated leaderboard stats per AI model.
 ### `POST /analyzer/analyze/:gameId`
 
 Runs forensic analysis on a completed game. Returns a report per AI bot, whether it was eliminated or survived.
+Use `?model=finetuned` to run and cache the report with the configured fine-tuned analyzer model instead of the baseline.
 
 ```json
 {
+  "model_used": "fastino/gliner2-base-v1",
   "analyzed_bots_count": 2,
   "eliminated_bots_count": 1,
   "bot_reports": [

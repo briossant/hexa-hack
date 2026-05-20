@@ -1,7 +1,9 @@
 import pg from "pg";
+import { BASELINE_MODEL } from "./analyzeBotPattern.js";
 import { LABEL_DESCRIPTIONS, LABEL_HEADLINES } from "./labels.js";
 
 const { Pool } = pg;
+const DEFAULT_ANALYSIS_MODEL = BASELINE_MODEL;
 
 const pool = new Pool({
   connectionString:
@@ -22,13 +24,14 @@ const SCHEMA = `
     survived_rounds    INTEGER NOT NULL,
     was_eliminated     BOOLEAN NOT NULL DEFAULT true,
     analyzed_at        BIGINT NOT NULL,
-    PRIMARY KEY (game_id, player_id)
+    PRIMARY KEY (game_id, player_id, model_used)
   );
 
   CREATE TABLE IF NOT EXISTS analyzer_pattern_evidence (
     id          BIGSERIAL PRIMARY KEY,
     game_id     TEXT NOT NULL,
     player_id   TEXT NOT NULL,
+    model_used  TEXT NOT NULL DEFAULT '${DEFAULT_ANALYSIS_MODEL}',
     label       TEXT NOT NULL,
     round       INTEGER NOT NULL,
     quote       TEXT NOT NULL
@@ -41,6 +44,29 @@ const SCHEMA = `
 
   ALTER TABLE analyzer_reports
     ADD COLUMN IF NOT EXISTS was_eliminated BOOLEAN NOT NULL DEFAULT true;
+
+  ALTER TABLE analyzer_pattern_evidence
+    ADD COLUMN IF NOT EXISTS model_used TEXT NOT NULL DEFAULT '${DEFAULT_ANALYSIS_MODEL}';
+
+  UPDATE analyzer_pattern_evidence e
+  SET model_used = ar.model_used
+  FROM analyzer_reports ar
+  WHERE e.game_id = ar.game_id
+    AND e.player_id = ar.player_id
+    AND e.model_used = '${DEFAULT_ANALYSIS_MODEL}'
+    AND (
+      SELECT COUNT(*)
+      FROM analyzer_reports ar2
+      WHERE ar2.game_id = e.game_id AND ar2.player_id = e.player_id
+    ) = 1;
+
+  ALTER TABLE analyzer_reports
+    DROP CONSTRAINT IF EXISTS analyzer_reports_pkey;
+  ALTER TABLE analyzer_reports
+    ADD PRIMARY KEY (game_id, player_id, model_used);
+
+  CREATE INDEX IF NOT EXISTS idx_analyzer_pattern_player_model
+    ON analyzer_pattern_evidence(game_id, player_id, model_used);
 `;
 
 export async function initSchema() {
@@ -74,19 +100,19 @@ export async function listGames() {
   return res.rows;
 }
 
-export async function loadGameReports(gameId) {
+export async function loadGameReports(gameId, modelUsed = DEFAULT_ANALYSIS_MODEL) {
   const reportsRes = await pool.query(
-    `SELECT * FROM analyzer_reports WHERE game_id = $1`,
-    [gameId]
+    `SELECT * FROM analyzer_reports WHERE game_id = $1 AND model_used = $2`,
+    [gameId, modelUsed]
   );
   if (reportsRes.rowCount === 0) return null;
 
   const evidenceRes = await pool.query(
     `SELECT player_id, label, round, quote
      FROM analyzer_pattern_evidence
-     WHERE game_id = $1
+     WHERE game_id = $1 AND model_used = $2
      ORDER BY player_id, round`,
-    [gameId]
+    [gameId, modelUsed]
   );
 
   return rowsToGameAnalysis(reportsRes.rows, evidenceRes.rows);
@@ -102,7 +128,7 @@ export async function saveBotReport({ gameId, bot, report, modelUsed }) {
          severity, verdict, total_patterns, distinct_patterns,
          survived_rounds, was_eliminated, analyzed_at
        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
-       ON CONFLICT (game_id, player_id) DO NOTHING`,
+       ON CONFLICT (game_id, player_id, model_used) DO NOTHING`,
       [
         gameId,
         bot.player_id,
@@ -122,16 +148,19 @@ export async function saveBotReport({ gameId, bot, report, modelUsed }) {
     // Only insert evidence rows if the report row was actually inserted
     // (avoid duplicating evidence on retried saves).
     const existing = await client.query(
-      `SELECT 1 FROM analyzer_pattern_evidence WHERE game_id = $1 AND player_id = $2 LIMIT 1`,
-      [gameId, bot.player_id]
+      `SELECT 1
+       FROM analyzer_pattern_evidence
+       WHERE game_id = $1 AND player_id = $2 AND model_used = $3
+       LIMIT 1`,
+      [gameId, bot.player_id, modelUsed]
     );
     if (existing.rowCount === 0) {
       for (const section of report.sections) {
         for (const ev of section.evidence) {
           await client.query(
-            `INSERT INTO analyzer_pattern_evidence (game_id, player_id, label, round, quote)
-             VALUES ($1,$2,$3,$4,$5)`,
-            [gameId, bot.player_id, section.label, ev.round, ev.quote]
+            `INSERT INTO analyzer_pattern_evidence (game_id, player_id, model_used, label, round, quote)
+             VALUES ($1,$2,$3,$4,$5,$6)`,
+            [gameId, bot.player_id, modelUsed, section.label, ev.round, ev.quote]
           );
         }
       }
@@ -153,22 +182,22 @@ export async function listEndedGameIds() {
   return res.rows.map((r) => r.game_id);
 }
 
-export async function listFullyAnalyzedGameIds() {
+export async function listFullyAnalyzedGameIds(modelUsed = DEFAULT_ANALYSIS_MODEL) {
   const res = await pool.query(`
     SELECT g.game_id
     FROM games g
     LEFT JOIN game_players gp
       ON gp.game_id = g.game_id AND gp.is_ai = true
     LEFT JOIN analyzer_reports ar
-      ON ar.game_id = g.game_id AND ar.player_id = gp.player_id
+      ON ar.game_id = g.game_id AND ar.player_id = gp.player_id AND ar.model_used = $1
     WHERE g.ended_at IS NOT NULL
     GROUP BY g.game_id
     HAVING COUNT(gp.player_id) = COUNT(ar.player_id)
-  `);
+  `, [modelUsed]);
   return res.rows.map((r) => r.game_id);
 }
 
-export async function getPatternStats() {
+export async function getPatternStats(modelUsed = DEFAULT_ANALYSIS_MODEL) {
   const [{ rows: aggregateRows }, { rows: totalsRows }] = await Promise.all([
     pool.query(`
       SELECT
@@ -176,15 +205,17 @@ export async function getPatternStats() {
         COUNT(*)::int                  AS occurrences,
         COUNT(DISTINCT (e.game_id, e.player_id))::int AS bots_affected
       FROM analyzer_pattern_evidence e
+      WHERE e.model_used = $1
       GROUP BY e.label
       ORDER BY bots_affected DESC, occurrences DESC
-    `),
+    `, [modelUsed]),
     pool.query(`
       SELECT
         COUNT(*)::int                              AS total_bots_analyzed,
         COUNT(DISTINCT game_id)::int               AS total_games_analyzed
       FROM analyzer_reports
-    `),
+      WHERE model_used = $1
+    `, [modelUsed]),
   ]);
 
   const totals = totalsRows[0] ?? { total_bots_analyzed: 0, total_games_analyzed: 0 };
@@ -195,14 +226,14 @@ export async function getPatternStats() {
   };
 }
 
-export async function getPatternStatsByModel() {
+export async function getPatternStatsByModel(modelUsed = DEFAULT_ANALYSIS_MODEL) {
   const [{ rows: botsRows }, { rows: patternRows }] = await Promise.all([
     pool.query(`
       SELECT model_name, COUNT(*)::int AS bots_count
       FROM analyzer_reports
-      WHERE model_name IS NOT NULL
+      WHERE model_name IS NOT NULL AND model_used = $1
       GROUP BY model_name
-    `),
+    `, [modelUsed]),
     pool.query(`
       SELECT
         r.model_name                                    AS model_name,
@@ -211,11 +242,13 @@ export async function getPatternStatsByModel() {
         COUNT(DISTINCT (e.game_id, e.player_id))::int   AS bots_affected
       FROM analyzer_reports r
       JOIN analyzer_pattern_evidence e
-        ON e.game_id = r.game_id AND e.player_id = r.player_id
-      WHERE r.model_name IS NOT NULL
+        ON e.game_id = r.game_id
+       AND e.player_id = r.player_id
+       AND e.model_used = r.model_used
+      WHERE r.model_name IS NOT NULL AND r.model_used = $1
       GROUP BY r.model_name, e.label
       ORDER BY r.model_name, bots_affected DESC, occurrences DESC
-    `),
+    `, [modelUsed]),
   ]);
 
   const byModel = new Map();
