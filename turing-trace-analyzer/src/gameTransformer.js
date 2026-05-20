@@ -1,5 +1,5 @@
-export function getExposedBots(gameData) {
-  return gameData.players.filter((p) => p.is_ai && p.was_eliminated);
+export function getAnalyzableBots(gameData) {
+  return gameData.players.filter((p) => p.is_ai);
 }
 
 export function buildAnalysisInput(gameData, suspectedPlayerId) {

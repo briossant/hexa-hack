@@ -7,13 +7,13 @@ import {
   listGames,
   initSchema,
   loadGameReports,
-  saveExposedBotReport,
+  saveBotReport,
   listEndedGameIds,
-  listAnalyzedGameIds,
+  listFullyAnalyzedGameIds,
   getPatternStats,
   getPatternStatsByModel,
 } from "./db.js";
-import { buildAnalysisInput, getExposedBots } from "./gameTransformer.js";
+import { buildAnalysisInput, getAnalyzableBots } from "./gameTransformer.js";
 import { LABEL_HEADLINES, LABEL_DESCRIPTIONS } from "./labels.js";
 
 const PORT = process.env.PORT ?? 3002;
@@ -68,28 +68,22 @@ const server = createServer(async (req, res) => {
 });
 
 async function analyzeGameById(gameId, modelId) {
-  const cached = await loadGameReports(gameId);
-  if (cached) {
-    const gameRes = await fetchGame(gameId);
-    if (!gameRes) return null;
-    return {
-      game_id: gameId,
-      winner: gameRes.game.winner,
-      total_rounds: gameRes.game.total_rounds,
-      model_used: cached.model_used ?? modelId,
-      exposed_bots_count: cached.reports.length,
-      forensic_reports: cached.reports,
-      cached: true,
-    };
-  }
-
   const gameData = await fetchGame(gameId);
   if (!gameData) return null;
 
-  const exposedBots = getExposedBots(gameData);
+  const analyzableBots = getAnalyzableBots(gameData);
+  const cached = await loadGameReports(gameId);
+  const cachedByPlayer = new Map((cached?.reports ?? []).map((r) => [r.player_id, r]));
   const reports = [];
+  let newlyAnalyzedCount = 0;
 
-  for (const bot of exposedBots) {
+  for (const bot of analyzableBots) {
+    const cachedReport = cachedByPlayer.get(bot.player_id);
+    if (cachedReport) {
+      reports.push(cachedReport);
+      continue;
+    }
+
     const analysisInput = buildAnalysisInput(gameData, bot.player_id);
     const analyzed = await analyzeGame(analysisInput, { modelId });
     const report = generateReport(analyzed);
@@ -98,19 +92,27 @@ async function analyzeGameById(gameId, modelId) {
       player_id: bot.player_id,
       model_name: bot.model_name,
       survived_rounds: bot.survived_rounds,
+      was_eliminated: bot.was_eliminated,
       report,
     });
-    await saveExposedBotReport({ gameId, bot, report, modelUsed: modelId });
+    await saveBotReport({ gameId, bot, report, modelUsed: modelId });
+    newlyAnalyzedCount++;
   }
+
+  const eliminatedBotsCount = analyzableBots.filter((bot) => bot.was_eliminated).length;
 
   return {
     game_id: gameData.game.game_id,
     winner: gameData.game.winner,
     total_rounds: gameData.game.total_rounds,
-    model_used: modelId,
-    exposed_bots_count: exposedBots.length,
+    model_used: cached?.model_used ?? modelId,
+    analyzed_bots_count: analyzableBots.length,
+    eliminated_bots_count: eliminatedBotsCount,
+    bot_reports: reports,
+    // Legacy fields kept for existing clients.
+    exposed_bots_count: analyzableBots.length,
     forensic_reports: reports,
-    cached: false,
+    cached: cached != null && newlyAnalyzedCount === 0,
   };
 }
 
@@ -147,12 +149,12 @@ function decoratePatternStats(stats) {
 
 async function runBackfill() {
   try {
-    const [endedIds, analyzedIds] = await Promise.all([
+    const [endedIds, fullyAnalyzedIds] = await Promise.all([
       listEndedGameIds(),
-      listAnalyzedGameIds(),
+      listFullyAnalyzedGameIds(),
     ]);
-    const analyzedSet = new Set(analyzedIds);
-    const pending = endedIds.filter((id) => !analyzedSet.has(id));
+    const fullyAnalyzedSet = new Set(fullyAnalyzedIds);
+    const pending = endedIds.filter((id) => !fullyAnalyzedSet.has(id));
 
     if (pending.length === 0) {
       console.log("[backfill] no pending games to analyze");
@@ -167,11 +169,11 @@ async function runBackfill() {
           console.log(`[backfill] ${gameId}: game disappeared, skipped`);
           continue;
         }
-        if (result.exposed_bots_count === 0) {
-          console.log(`[backfill] ${gameId}: no exposed bots`);
+        if (result.analyzed_bots_count === 0) {
+          console.log(`[backfill] ${gameId}: no bots to analyze`);
         } else {
           console.log(
-            `[backfill] ${gameId}: analyzed ${result.exposed_bots_count} bot(s)`
+            `[backfill] ${gameId}: analyzed ${result.analyzed_bots_count} bot(s)`
           );
         }
       } catch (err) {

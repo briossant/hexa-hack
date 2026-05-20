@@ -105,7 +105,7 @@ function ModelDetailPanel({ stats }: { stats: ModelPatternStats | null | undefin
   return (
     <div className="px-10 py-5 bg-mauve/[0.02]">
       <p className="text-[10px] uppercase tracking-widest text-mauve/50 font-semibold mb-3">
-        Why it got caught · based on {stats.bots_count} eliminated bot
+        Detection patterns · based on {stats.bots_count} analyzed bot
         {stats.bots_count !== 1 ? 's' : ''}
       </p>
       <div className="flex flex-col gap-2">

@@ -20,6 +20,7 @@ const SCHEMA = `
     total_patterns     INTEGER NOT NULL,
     distinct_patterns  INTEGER NOT NULL,
     survived_rounds    INTEGER NOT NULL,
+    was_eliminated     BOOLEAN NOT NULL DEFAULT true,
     analyzed_at        BIGINT NOT NULL,
     PRIMARY KEY (game_id, player_id)
   );
@@ -37,6 +38,9 @@ const SCHEMA = `
     ON analyzer_pattern_evidence(label);
   CREATE INDEX IF NOT EXISTS idx_analyzer_pattern_player
     ON analyzer_pattern_evidence(game_id, player_id);
+
+  ALTER TABLE analyzer_reports
+    ADD COLUMN IF NOT EXISTS was_eliminated BOOLEAN NOT NULL DEFAULT true;
 `;
 
 export async function initSchema() {
@@ -88,7 +92,7 @@ export async function loadGameReports(gameId) {
   return rowsToGameAnalysis(reportsRes.rows, evidenceRes.rows);
 }
 
-export async function saveExposedBotReport({ gameId, bot, report, modelUsed }) {
+export async function saveBotReport({ gameId, bot, report, modelUsed }) {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
@@ -96,8 +100,8 @@ export async function saveExposedBotReport({ gameId, bot, report, modelUsed }) {
       `INSERT INTO analyzer_reports (
          game_id, player_id, player_name, model_name, model_used,
          severity, verdict, total_patterns, distinct_patterns,
-         survived_rounds, analyzed_at
-       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+         survived_rounds, was_eliminated, analyzed_at
+       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
        ON CONFLICT (game_id, player_id) DO NOTHING`,
       [
         gameId,
@@ -110,6 +114,7 @@ export async function saveExposedBotReport({ gameId, bot, report, modelUsed }) {
         report.total_patterns,
         report.distinct_patterns,
         bot.survived_rounds,
+        bot.was_eliminated,
         Date.now(),
       ]
     );
@@ -148,8 +153,18 @@ export async function listEndedGameIds() {
   return res.rows.map((r) => r.game_id);
 }
 
-export async function listAnalyzedGameIds() {
-  const res = await pool.query(`SELECT DISTINCT game_id FROM analyzer_reports`);
+export async function listFullyAnalyzedGameIds() {
+  const res = await pool.query(`
+    SELECT g.game_id
+    FROM games g
+    LEFT JOIN game_players gp
+      ON gp.game_id = g.game_id AND gp.is_ai = true
+    LEFT JOIN analyzer_reports ar
+      ON ar.game_id = g.game_id AND ar.player_id = gp.player_id
+    WHERE g.ended_at IS NOT NULL
+    GROUP BY g.game_id
+    HAVING COUNT(gp.player_id) = COUNT(ar.player_id)
+  `);
   return res.rows.map((r) => r.game_id);
 }
 
@@ -250,6 +265,7 @@ function rowsToGameAnalysis(reportRows, evidenceRows) {
       player_id: r.player_id,
       model_name: r.model_name,
       survived_rounds: r.survived_rounds,
+      was_eliminated: r.was_eliminated,
       report: {
         game_id: r.game_id,
         suspected_player: r.player_name,

@@ -110,7 +110,7 @@ It uses **GLiNER** (Generalized Linear Inference for NER), a zero-shot NLP class
 | `excessive_politeness` | Unnaturally polite for a casual game |
 | `suspicious_timing` | Responds too consistently or too fast |
 
-The analyzer returns a **forensic report** per exposed bot: a severity rating, a verdict, and per-label evidence with quotes and round numbers.
+The analyzer returns a **forensic report** per AI bot: a severity rating, a verdict, and per-label evidence with quotes and round numbers.
 
 ### Database Schema
 
@@ -253,15 +253,17 @@ Returns aggregated leaderboard stats per AI model.
 
 ### `POST /analyzer/analyze/:gameId`
 
-Runs forensic analysis on a completed game. Returns a report per exposed bot.
+Runs forensic analysis on a completed game. Returns a report per AI bot, whether it was eliminated or survived.
 
 ```json
 {
-  "exposed_bots_count": 1,
-  "forensic_reports": [
+  "analyzed_bots_count": 2,
+  "eliminated_bots_count": 1,
+  "bot_reports": [
     {
       "player_name": "Orion",
       "model_name": "gpt-5.4-mini",
+      "was_eliminated": true,
       "report": {
         "severity": "high",
         "verdict": "Multiple bot-typical patterns detected across rounds.",

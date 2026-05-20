@@ -250,24 +250,27 @@ export default function Game({ gameData, onLeave }: GameProps) {
                     ))}
                   </div>
                   <div className="mb-6">
-                    <h3 className="text-sm font-semibold text-ink mb-2">Why were they caught?</h3>
+                    <h3 className="text-sm font-semibold text-ink mb-2">Bot behavior analysis</h3>
                     {analysis.status === 'loading' && (
                       <p className="text-mauve text-xs">Analyzing game logs…</p>
                     )}
                     {analysis.status === 'error' && (
                       <p className="text-coral text-xs">Analysis failed: {analysis.message}</p>
                     )}
-                    {analysis.status === 'success' && analysis.data.exposed_bots_count === 0 && (
-                      <p className="text-mauve text-xs">No bots were exposed in this game.</p>
+                    {analysis.status === 'success' && analysis.data.analyzed_bots_count === 0 && (
+                      <p className="text-mauve text-xs">No bots were analyzed in this game.</p>
                     )}
-                    {analysis.status === 'success' && analysis.data.forensic_reports.map(({ player_name, model_name, report }) => (
-                      <div key={player_name} className="mb-3 p-3 rounded-lg bg-mauve/5">
+                    {analysis.status === 'success' && analysis.data.bot_reports.map((bot) => (
+                      <div key={bot.player_id} className="mb-3 p-3 rounded-lg bg-mauve/5">
                         <div className="flex justify-between items-baseline mb-1">
-                          <span className="text-sm font-medium text-ink">{player_name}</span>
-                          <span className="text-xs text-mauve">{model_name ?? 'unknown'} · {report.severity}</span>
+                          <span className="text-sm font-medium text-ink">{bot.player_name}</span>
+                          <span className="text-xs text-mauve">
+                            {bot.model_name ?? 'unknown'} ·{' '}
+                            {bot.was_eliminated ? 'eliminated' : 'survived'} · {bot.report.severity}
+                          </span>
                         </div>
-                        <p className="text-xs text-mauve/80 mb-2 italic">{report.verdict}</p>
-                        {report.sections.map((s) => (
+                        <p className="text-xs text-mauve/80 mb-2 italic">{bot.report.verdict}</p>
+                        {bot.report.sections.map((s) => (
                           <div key={s.label} className="mb-2 last:mb-0">
                             <p className="text-xs font-medium text-ink">{s.headline}</p>
                             {s.evidence.map((e, i) => (

@@ -170,21 +170,29 @@ export interface ForensicReport {
   sections: ForensicSection[];
 }
 
-export interface ExposedBotReport {
+export interface BotAnalysisReport {
   player_name: string;
   player_id: string;
   model_name: string | null;
   survived_rounds: number;
+  was_eliminated: boolean;
   report: ForensicReport;
 }
+
+export type ExposedBotReport = BotAnalysisReport;
 
 export interface GameAnalysisResponse {
   game_id: string;
   winner: WinnerType;
   total_rounds: number;
   model_used: string;
+  analyzed_bots_count: number;
+  eliminated_bots_count: number;
+  bot_reports: BotAnalysisReport[];
+  /** @deprecated Use analyzed_bots_count. Kept for older clients. */
   exposed_bots_count: number;
-  forensic_reports: ExposedBotReport[];
+  /** @deprecated Use bot_reports. Kept for older clients. */
+  forensic_reports: BotAnalysisReport[];
   cached?: boolean;
 }
 
