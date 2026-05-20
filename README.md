@@ -39,16 +39,17 @@ Four services communicate over a shared Docker network:
 Browser
   └─ Socket.io (WS) ──► backend (Express + Socket.io, :3001)
                               ├─ OpenAI / Pioneer API  (AI agent turns)
-                              └─ PostgreSQL (:5432)     (game persistence)
+                              ├─ PostgreSQL (:5432)     (game persistence)
+                              └─ turing-trace-analyzer (:3002)
+                                   └─ Pioneer API (GLiNER bot detection)
 
 Browser (REST)
-  └─ /analyzer/* ──► turing-trace-analyzer (:3002)
-                              ├─ Pioneer API (GLiNER bot detection)
+  └─ /analyzer/stats/* ──► turing-trace-analyzer (:3002)
                               └─ PostgreSQL (:5432)     (game logs)
 
 frontend (React SPA, Nginx, :6767)
   └─ proxies /socket.io → backend
-  └─ proxies /analyzer  → turing-trace-analyzer
+  └─ proxies /analyzer/stats → turing-trace-analyzer
 ```
 
 ### Services
@@ -138,6 +139,8 @@ Key events:
 | `mayor:elected` | server → client | Mayor election result |
 | `round:end` | server → client | Elimination result and reveal |
 | `game:over` | server → client | Winner + full player reveal |
+| `game:analysis` | server → client | Post-game analyzer report when ready |
+| `game:analysis:error` | server → client | Post-game analyzer failure |
 | `game:rejoin` | client → server | Reconnect to an active game |
 
 ---
@@ -171,6 +174,9 @@ OPENAI_API_KEY=your_openai_key_here
 # Optional — enables Pioneer models and bot analysis
 PIONEER_API_KEY=your_pioneer_key_here
 PIONEER_BASE_URL=https://api.pioneer.ai/v1
+
+# Post-game analyzer service called by the backend
+ANALYZER_URL=http://localhost:3002
 
 # Game parameters
 PLAYERS_PER_GAME=6
@@ -258,9 +264,12 @@ Returns aggregated leaderboard stats per AI model.
 ]
 ```
 
-### `POST /analyzer/analyze/:gameId`
+### `POST /analyze/:gameId` (internal analyzer service)
 
-Runs forensic analysis on a completed game. Returns a report per AI bot, whether it was eliminated or survived.
+Runs forensic analysis on a completed game. The backend calls this after emitting `game:over`, then broadcasts the result to players through `game:analysis`.
+Browser clients should not call this endpoint directly.
+
+Returns a report per AI bot, whether it was eliminated or survived.
 Use `?model=finetuned` to run and cache the report with the configured fine-tuned analyzer model instead of the baseline.
 
 ```json

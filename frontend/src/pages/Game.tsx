@@ -98,7 +98,7 @@ export default function Game({ gameData, onLeave }: GameProps) {
       }
     });
 
-    socket.on('game:over', async ({ winner, players }) => {
+    socket.on('game:over', ({ winner, players }) => {
       if (timerRef.current) clearInterval(timerRef.current);
       setPlayers(players);
       setWinner(winner);
@@ -113,14 +113,16 @@ export default function Game({ gameData, onLeave }: GameProps) {
       });
 
       setAnalysis({ status: 'loading' });
-      try {
-        const res = await fetch(`/analyzer/analyze/${gameId}`, { method: 'POST' });
-        if (!res.ok) throw new Error(`analyzer responded ${res.status}`);
-        const data: GameAnalysisResponse = await res.json();
-        setAnalysis({ status: 'success', data });
-      } catch (err) {
-        setAnalysis({ status: 'error', message: (err as Error).message });
-      }
+    });
+
+    socket.on('game:analysis', (data) => {
+      if (data.game_id !== gameId) return;
+      setAnalysis({ status: 'success', data });
+    });
+
+    socket.on('game:analysis:error', ({ gameId: analysisGameId, message }) => {
+      if (analysisGameId !== gameId) return;
+      setAnalysis({ status: 'error', message });
     });
 
     return () => {
@@ -130,6 +132,8 @@ export default function Game({ gameData, onLeave }: GameProps) {
       socket.off('mayor:elected');
       socket.off('round:end');
       socket.off('game:over');
+      socket.off('game:analysis');
+      socket.off('game:analysis:error');
     };
   }, []);
 

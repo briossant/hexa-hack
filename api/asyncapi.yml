@@ -18,6 +18,7 @@ info:
     4. Game proceeds through phases: `mayor_vote` → `discussion` → `vote` (repeats)
     5. Each phase transition is announced via `phase:change`
     6. Game ends with `game:over`
+    7. Server emits `game:analysis` when the post-game analyzer report is ready, or `game:analysis:error` if it fails
 
 servers:
   development:
@@ -121,6 +122,22 @@ channels:
       gameOver:
         $ref: '#/components/messages/GameOver'
 
+  gameAnalysis:
+    address: game:analysis
+    description: |
+      Server broadcasts the post-game analyzer report after the game has ended.
+      This event arrives after `game:over`.
+    messages:
+      gameAnalysis:
+        $ref: '#/components/messages/GameAnalysis'
+
+  gameAnalysisError:
+    address: game:analysis:error
+    description: Server reports that post-game analysis failed.
+    messages:
+      gameAnalysisError:
+        $ref: '#/components/messages/GameAnalysisError'
+
 # --- Operations ---
 
 operations:
@@ -190,6 +207,18 @@ operations:
     summary: Announce game result
     channel:
       $ref: '#/channels/gameOver'
+
+  receiveGameAnalysis:
+    action: send
+    summary: Broadcast post-game analyzer report
+    channel:
+      $ref: '#/channels/gameAnalysis'
+
+  receiveGameAnalysisError:
+    action: send
+    summary: Broadcast post-game analyzer failure
+    channel:
+      $ref: '#/channels/gameAnalysisError'
 
 # --- Components ---
 
@@ -370,7 +399,45 @@ components:
             items:
               $ref: '#/components/schemas/RoundLog'
 
+    GameAnalysis:
+      summary: Post-game analyzer report
+      payload:
+        $ref: '#/components/schemas/GameAnalysis'
+
+    GameAnalysisError:
+      summary: Post-game analyzer failure
+      payload:
+        type: object
+        properties:
+          gameId:
+            type: string
+            format: uuid
+          message:
+            type: string
+
   schemas:
+
+    GameAnalysis:
+      type: object
+      properties:
+        game_id:
+          type: string
+          format: uuid
+        winner:
+          type: string
+          enum: [humans, ai]
+        total_rounds:
+          type: integer
+        model_used:
+          type: string
+        analyzed_bots_count:
+          type: integer
+        eliminated_bots_count:
+          type: integer
+        bot_reports:
+          type: array
+          items:
+            type: object
 
     Player:
       type: object

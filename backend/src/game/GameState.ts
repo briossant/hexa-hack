@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import { Server } from 'socket.io';
 import { invokeAgent } from '../ai/aiPlayer';
+import { analyzeCompletedGame } from '../analyzer/client';
 import { persistGame } from '../db/persist';
 import type { InternalPlayer, SocketData } from '../types';
 import type {
@@ -171,7 +172,7 @@ export class GameState {
     if (winner) {
       this.isEnding = true;
       // Small delay so clients receive round:end before game:over
-      setTimeout(() => void this._endGame(winner), 500);
+      setTimeout(() => this._endGame(winner), 500);
     } else {
       // 10-second break before next round
       setTimeout(() => this._startRound(), BREAK_DURATION_MS);
@@ -187,25 +188,46 @@ export class GameState {
     return null;
   }
 
-  private async _endGame(winner: 'humans' | 'ai'): Promise<void> {
+  private _endGame(winner: 'humans' | 'ai'): void {
     if (this.timer) clearTimeout(this.timer);
     this.phase = 'ended';
+    const endedAt = Date.now();
 
+    this.emit('game:over', { winner, players: this._publicPlayers(true), log: this.log });
+
+    void this._persistAndAnalyzeGame(winner, endedAt);
+  }
+
+  private async _persistAndAnalyzeGame(winner: 'humans' | 'ai', endedAt: number): Promise<void> {
     try {
       await persistGame({
         gameId: this.gameId,
         winner,
         startedAt: this.startedAt,
-        endedAt: Date.now(),
+        endedAt,
         totalRounds: this.round,
         players: [...this.players.values()],
         log: this.log,
       });
     } catch (err) {
-      console.error('[db] Failed to persist game before game:over:', err);
+      console.error('[db] Failed to persist game before analysis:', err);
+      this.emit('game:analysis:error', {
+        gameId: this.gameId,
+        message: 'Game analysis could not start because persistence failed.',
+      });
+      return;
     }
 
-    this.emit('game:over', { winner, players: this._publicPlayers(true), log: this.log });
+    try {
+      const analysis = await analyzeCompletedGame(this.gameId);
+      this.emit('game:analysis', analysis);
+    } catch (err) {
+      console.error('[analyzer] Failed to analyze game:', err);
+      this.emit('game:analysis:error', {
+        gameId: this.gameId,
+        message: err instanceof Error ? err.message : 'Unknown analyzer error',
+      });
+    }
   }
 
   private _resolveVote(): string | null {

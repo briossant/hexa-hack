@@ -85,6 +85,11 @@ export interface GameOverPayload {
   log: RoundLog[];
 }
 
+export interface GameAnalysisErrorPayload {
+  gameId: string;
+  message: string;
+}
+
 export interface QueueJoinedPayload {
   playerId: string;
   position: number;
@@ -114,6 +119,8 @@ export interface ServerToClientEvents {
   'mayor:elected': (payload: MayorElectedPayload) => void;
   'round:end': (payload: RoundEndPayload) => void;
   'game:over': (payload: GameOverPayload) => void;
+  'game:analysis': (payload: GameAnalysisResponse) => void;
+  'game:analysis:error': (payload: GameAnalysisErrorPayload) => void;
   'game:rejoin:success': (payload: GameRejoinSuccessPayload) => void;
   'game:rejoin:failed': () => void;
 }

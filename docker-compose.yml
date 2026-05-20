@@ -24,19 +24,22 @@ services:
       - ./backend/.env
     environment:
       DATABASE_URL: postgresql://hexahack:hexahack@postgres:5432/hexahack
+      ANALYZER_URL: http://turing-trace-analyzer:3002
     ports:
       - "3001:3001"
     depends_on:
       postgres:
         condition: service_healthy
+      turing-trace-analyzer:
+        condition: service_started
     restart: unless-stopped
 
   turing-trace-analyzer:
     build:
       context: .
       dockerfile: turing-trace-analyzer/Dockerfile
-    ports:
-      - "3002:3002"
+    expose:
+      - "3002"
     env_file:
       - ./turing-trace-analyzer/.env
     environment:
