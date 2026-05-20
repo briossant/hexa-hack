@@ -152,26 +152,20 @@ export class GameState {
     const eliminatedId = this._resolveVote();
     const voteSnapshot = Object.fromEntries(this.votes);
 
+    let eliminatedInfo: EliminatedPlayer | null = null;
     if (eliminatedId) {
       const p = this.players.get(eliminatedId)!;
       p.isAlive = false;
-      const eliminatedInfo: EliminatedPlayer = {
+      eliminatedInfo = {
         id: eliminatedId,
         name: p.name,
         isAI: p.isAI,
         ...(p.isAI ? { modelName: p.modelName } : {}),
         ...(p.realName ? { realName: p.realName } : {}),
       };
-      this.log.push({
-        round: this.round,
-        eliminated: eliminatedInfo,
-        votes: voteSnapshot,
-        messages: this.messages.filter((m) => m.round === this.round),
-      });
-      this.emit('round:end', { eliminated: eliminatedInfo, votes: voteSnapshot, round: this.round });
-    } else {
-      this.emit('round:end', { eliminated: null, votes: voteSnapshot, round: this.round });
     }
+    this._recordRoundLog(eliminatedInfo, voteSnapshot);
+    this.emit('round:end', { eliminated: eliminatedInfo, votes: voteSnapshot, round: this.round });
 
     const winner = this._checkWin();
     if (winner) {
@@ -230,6 +224,15 @@ export class GameState {
       if (leaders.includes(mayorPick)) return mayorPick;
     }
     return null;
+  }
+
+  private _recordRoundLog(eliminated: EliminatedPlayer | null, votes: Record<string, string>): void {
+    this.log.push({
+      round: this.round,
+      eliminated,
+      votes,
+      messages: this.messages.filter((m) => m.round === this.round),
+    });
   }
 
   // ─── Public actions ────────────────────────────────────────────────────────
