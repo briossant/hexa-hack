@@ -18,6 +18,7 @@ export function buildAnalysisInput(gameData, suspectedPlayerId) {
       messages: (messagesByRound.get(round) ?? []).map((m) => ({
         player: m.player_name,
         text: m.text,
+        sent_at: m.sent_at != null ? Number(m.sent_at) : null,
       })),
       votes: (votesByRound.get(round) ?? []).map((v) => ({
         from: nameFromId(gameData.players, v.voter_id),

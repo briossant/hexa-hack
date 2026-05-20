@@ -93,7 +93,7 @@ Supported models (configurable via env):
 ### Turing Trace Analyzer
 A separate microservice that runs post-game forensic analysis on AI players who were eliminated or survived.
 
-It uses **GLiNER** (Generalized Linear Inference for NER), a zero-shot NLP classification model fine-tuned on game logs, served via the **Pioneer API**. Each message is scored against 12 bot behavioral labels:
+It uses **GLiNER** (Generalized Linear Inference for NER), a zero-shot NLP classification model fine-tuned on game logs, served via the **Pioneer API**. Each message is scored against 12 bot behavioral labels with its round context: nearby chat, the player's earlier messages, recorded votes, and timing metadata.
 
 | Label | Description |
 |---|---|

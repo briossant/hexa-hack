@@ -4,6 +4,10 @@ const PIONEER_URL = "https://api.pioneer.ai/inference";
 export const BASELINE_MODEL = "fastino/gliner2-base-v1";
 export const FINETUNED_MODEL = process.env.FINETUNED_MODEL_ID ?? "hunt-the-bot-v1";
 
+const ROUND_CONTEXT_BEFORE = 6;
+const ROUND_CONTEXT_AFTER = 2;
+const PREVIOUS_TARGET_MESSAGES = 5;
+
 export async function analyzeMessage({
   playerId,
   round,
@@ -47,15 +51,25 @@ export async function analyzeMessage({
 export async function analyzeGame(game, { threshold = 0.5, modelId = BASELINE_MODEL } = {}) {
   const target = game.suspected_player;
   const detectedPatterns = [];
+  const previousTargetMessages = [];
 
   for (const round of game.rounds) {
-    const targetMessages = round.messages.filter((m) => m.player === target);
+    const messages = round.messages ?? [];
 
-    for (const m of targetMessages) {
+    for (let messageIndex = 0; messageIndex < messages.length; messageIndex++) {
+      const m = messages[messageIndex];
+      if (m.player !== target) continue;
+
       const res = await analyzeMessage({
         playerId: target,
         round: round.round,
-        message: m.text,
+        message: buildContextualMessage({
+          round,
+          target,
+          targetMessage: m,
+          messageIndex,
+          previousTargetMessages,
+        }),
         threshold,
         modelId,
       });
@@ -69,6 +83,12 @@ export async function analyzeGame(game, { threshold = 0.5, modelId = BASELINE_MO
           confidence: c.score ?? c.confidence ?? null,
         });
       }
+
+      previousTargetMessages.push({
+        round: round.round,
+        text: m.text,
+        sent_at: m.sent_at ?? null,
+      });
     }
   }
 
@@ -78,6 +98,94 @@ export async function analyzeGame(game, { threshold = 0.5, modelId = BASELINE_MO
     ground_truth_is_bot: game.ground_truth_is_bot,
     detected_patterns: detectedPatterns,
   };
+}
+
+export function buildContextualMessage({
+  round,
+  target,
+  targetMessage,
+  messageIndex,
+  previousTargetMessages = [],
+}) {
+  const messages = round.messages ?? [];
+  const roundStart = firstTimestamp(messages);
+  const contextStart = Math.max(0, messageIndex - ROUND_CONTEXT_BEFORE);
+  const contextEnd = Math.min(messages.length, messageIndex + ROUND_CONTEXT_AFTER + 1);
+  const roundContext = messages
+    .slice(contextStart, contextEnd)
+    .map((m, offset) => {
+      const absoluteIndex = contextStart + offset;
+      const marker = absoluteIndex === messageIndex ? "CURRENT" : "context";
+      return `${marker}: ${formatMessageLine(m, target, roundStart)}`;
+    })
+    .join("\n");
+
+  const previousLines = previousTargetMessages
+    .slice(-PREVIOUS_TARGET_MESSAGES)
+    .map((m) => `round ${m.round}: "${m.text}"`)
+    .join("\n");
+
+  return [
+    `[MESSAGE UNDER REVIEW]`,
+    `${target}: "${targetMessage.text}"`,
+    ``,
+    `[TIMING METADATA]`,
+    formatTiming({ messages, targetMessage, messageIndex, previousTargetMessages }),
+    ``,
+    `[RECENT ROUND CHAT]`,
+    roundContext || "(no chat context recorded)",
+    ``,
+    `[EARLIER MESSAGES BY SAME PLAYER]`,
+    previousLines || "(none recorded)",
+    ``,
+    `[RECORDED ROUND VOTES]`,
+    formatVotes(round.votes ?? []),
+  ].join("\n");
+}
+
+function formatMessageLine(message, target, roundStart) {
+  const playerTag = message.player === target ? `${message.player} (player under review)` : message.player;
+  const time = formatRelativeTime(message.sent_at, roundStart);
+  return `${time}${playerTag}: "${message.text}"`;
+}
+
+function formatTiming({ messages, targetMessage, messageIndex, previousTargetMessages }) {
+  const lines = [`position_in_round_chat: ${messageIndex + 1}/${messages.length}`];
+  const previousMessage = messages[messageIndex - 1];
+  const sincePrevious = diffMs(targetMessage.sent_at, previousMessage?.sent_at);
+  const previousTarget = previousTargetMessages[previousTargetMessages.length - 1];
+  const sinceOwnPrevious = diffMs(targetMessage.sent_at, previousTarget?.sent_at);
+
+  lines.push(`seconds_since_previous_chat_message: ${formatSeconds(sincePrevious)}`);
+  lines.push(`seconds_since_same_player_previous_message: ${formatSeconds(sinceOwnPrevious)}`);
+  return lines.join("\n");
+}
+
+function formatVotes(votes) {
+  if (votes.length === 0) return "(no votes recorded)";
+  return votes.map((v) => `${v.from} -> ${v.to}`).join("\n");
+}
+
+function diffMs(current, previous) {
+  if (current == null || previous == null) return null;
+  const delta = Number(current) - Number(previous);
+  return Number.isFinite(delta) && delta >= 0 ? delta : null;
+}
+
+function formatSeconds(deltaMs) {
+  return deltaMs == null ? "unknown" : (deltaMs / 1000).toFixed(1);
+}
+
+function firstTimestamp(messages) {
+  for (const message of messages) {
+    if (message.sent_at != null) return Number(message.sent_at);
+  }
+  return null;
+}
+
+function formatRelativeTime(sentAt, roundStart) {
+  const delta = diffMs(sentAt, roundStart);
+  return delta == null ? "" : `t+${formatSeconds(delta)}s `;
 }
 
 function extractClassifications(apiResponse) {

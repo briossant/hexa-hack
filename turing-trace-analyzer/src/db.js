@@ -4,6 +4,8 @@ import { LABEL_DESCRIPTIONS, LABEL_HEADLINES } from "./labels.js";
 
 const { Pool } = pg;
 const DEFAULT_ANALYSIS_MODEL = BASELINE_MODEL;
+const ANALYSIS_VERSION = "contextual-v1";
+const LEGACY_ANALYSIS_VERSION = "message-only-v1";
 
 const pool = new Pool({
   connectionString:
@@ -17,6 +19,7 @@ const SCHEMA = `
     player_name        TEXT NOT NULL,
     model_name         TEXT,
     model_used         TEXT NOT NULL,
+    analysis_version   TEXT NOT NULL DEFAULT '${ANALYSIS_VERSION}',
     severity           TEXT NOT NULL,
     verdict            TEXT NOT NULL,
     total_patterns     INTEGER NOT NULL,
@@ -32,6 +35,7 @@ const SCHEMA = `
     game_id     TEXT NOT NULL,
     player_id   TEXT NOT NULL,
     model_used  TEXT NOT NULL DEFAULT '${DEFAULT_ANALYSIS_MODEL}',
+    analysis_version TEXT NOT NULL DEFAULT '${ANALYSIS_VERSION}',
     label       TEXT NOT NULL,
     round       INTEGER NOT NULL,
     quote       TEXT NOT NULL
@@ -44,9 +48,20 @@ const SCHEMA = `
 
   ALTER TABLE analyzer_reports
     ADD COLUMN IF NOT EXISTS was_eliminated BOOLEAN NOT NULL DEFAULT true;
+  ALTER TABLE analyzer_reports
+    ADD COLUMN IF NOT EXISTS analysis_version TEXT;
+  UPDATE analyzer_reports
+    SET analysis_version = '${LEGACY_ANALYSIS_VERSION}'
+    WHERE analysis_version IS NULL;
+  ALTER TABLE analyzer_reports
+    ALTER COLUMN analysis_version SET DEFAULT '${ANALYSIS_VERSION}';
+  ALTER TABLE analyzer_reports
+    ALTER COLUMN analysis_version SET NOT NULL;
 
   ALTER TABLE analyzer_pattern_evidence
     ADD COLUMN IF NOT EXISTS model_used TEXT NOT NULL DEFAULT '${DEFAULT_ANALYSIS_MODEL}';
+  ALTER TABLE analyzer_pattern_evidence
+    ADD COLUMN IF NOT EXISTS analysis_version TEXT;
 
   UPDATE analyzer_pattern_evidence e
   SET model_used = ar.model_used
@@ -57,8 +72,18 @@ const SCHEMA = `
     AND (
       SELECT COUNT(*)
       FROM analyzer_reports ar2
-      WHERE ar2.game_id = e.game_id AND ar2.player_id = e.player_id
+      WHERE ar2.game_id = e.game_id
+        AND ar2.player_id = e.player_id
+        AND ar2.analysis_version = '${LEGACY_ANALYSIS_VERSION}'
     ) = 1;
+
+  UPDATE analyzer_pattern_evidence
+    SET analysis_version = '${LEGACY_ANALYSIS_VERSION}'
+    WHERE analysis_version IS NULL;
+  ALTER TABLE analyzer_pattern_evidence
+    ALTER COLUMN analysis_version SET DEFAULT '${ANALYSIS_VERSION}';
+  ALTER TABLE analyzer_pattern_evidence
+    ALTER COLUMN analysis_version SET NOT NULL;
 
   ALTER TABLE analyzer_reports
     DROP CONSTRAINT IF EXISTS analyzer_reports_pkey;
@@ -66,7 +91,7 @@ const SCHEMA = `
     ADD PRIMARY KEY (game_id, player_id, model_used);
 
   CREATE INDEX IF NOT EXISTS idx_analyzer_pattern_player_model
-    ON analyzer_pattern_evidence(game_id, player_id, model_used);
+    ON analyzer_pattern_evidence(game_id, player_id, model_used, analysis_version);
 `;
 
 export async function initSchema() {
@@ -102,17 +127,19 @@ export async function listGames() {
 
 export async function loadGameReports(gameId, modelUsed = DEFAULT_ANALYSIS_MODEL) {
   const reportsRes = await pool.query(
-    `SELECT * FROM analyzer_reports WHERE game_id = $1 AND model_used = $2`,
-    [gameId, modelUsed]
+    `SELECT *
+     FROM analyzer_reports
+     WHERE game_id = $1 AND model_used = $2 AND analysis_version = $3`,
+    [gameId, modelUsed, ANALYSIS_VERSION]
   );
   if (reportsRes.rowCount === 0) return null;
 
   const evidenceRes = await pool.query(
     `SELECT player_id, label, round, quote
      FROM analyzer_pattern_evidence
-     WHERE game_id = $1 AND model_used = $2
+     WHERE game_id = $1 AND model_used = $2 AND analysis_version = $3
      ORDER BY player_id, round`,
-    [gameId, modelUsed]
+    [gameId, modelUsed, ANALYSIS_VERSION]
   );
 
   return rowsToGameAnalysis(reportsRes.rows, evidenceRes.rows);
@@ -124,10 +151,10 @@ export async function saveBotReport({ gameId, bot, report, modelUsed }) {
     await client.query("BEGIN");
     await client.query(
       `INSERT INTO analyzer_reports (
-         game_id, player_id, player_name, model_name, model_used,
+         game_id, player_id, player_name, model_name, model_used, analysis_version,
          severity, verdict, total_patterns, distinct_patterns,
          survived_rounds, was_eliminated, analyzed_at
-       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
        ON CONFLICT (game_id, player_id, model_used) DO NOTHING`,
       [
         gameId,
@@ -135,6 +162,7 @@ export async function saveBotReport({ gameId, bot, report, modelUsed }) {
         bot.name,
         bot.model_name,
         modelUsed,
+        ANALYSIS_VERSION,
         report.severity,
         report.verdict,
         report.total_patterns,
@@ -145,24 +173,50 @@ export async function saveBotReport({ gameId, bot, report, modelUsed }) {
       ]
     );
 
-    // Only insert evidence rows if the report row was actually inserted
-    // (avoid duplicating evidence on retried saves).
-    const existing = await client.query(
-      `SELECT 1
-       FROM analyzer_pattern_evidence
-       WHERE game_id = $1 AND player_id = $2 AND model_used = $3
-       LIMIT 1`,
+    await client.query(
+      `UPDATE analyzer_reports
+       SET player_name = $4,
+           model_name = $5,
+           analysis_version = $6,
+           severity = $7,
+           verdict = $8,
+           total_patterns = $9,
+           distinct_patterns = $10,
+           survived_rounds = $11,
+           was_eliminated = $12,
+           analyzed_at = $13
+       WHERE game_id = $1 AND player_id = $2 AND model_used = $3`,
+      [
+        gameId,
+        bot.player_id,
+        modelUsed,
+        bot.name,
+        bot.model_name,
+        ANALYSIS_VERSION,
+        report.severity,
+        report.verdict,
+        report.total_patterns,
+        report.distinct_patterns,
+        bot.survived_rounds,
+        bot.was_eliminated,
+        Date.now(),
+      ]
+    );
+
+    await client.query(
+      `DELETE FROM analyzer_pattern_evidence
+       WHERE game_id = $1 AND player_id = $2 AND model_used = $3`,
       [gameId, bot.player_id, modelUsed]
     );
-    if (existing.rowCount === 0) {
-      for (const section of report.sections) {
-        for (const ev of section.evidence) {
-          await client.query(
-            `INSERT INTO analyzer_pattern_evidence (game_id, player_id, model_used, label, round, quote)
-             VALUES ($1,$2,$3,$4,$5,$6)`,
-            [gameId, bot.player_id, modelUsed, section.label, ev.round, ev.quote]
-          );
-        }
+
+    for (const section of report.sections) {
+      for (const ev of section.evidence) {
+        await client.query(
+          `INSERT INTO analyzer_pattern_evidence (
+             game_id, player_id, model_used, analysis_version, label, round, quote
+           ) VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+          [gameId, bot.player_id, modelUsed, ANALYSIS_VERSION, section.label, ev.round, ev.quote]
+        );
       }
     }
 
@@ -189,11 +243,14 @@ export async function listFullyAnalyzedGameIds(modelUsed = DEFAULT_ANALYSIS_MODE
     LEFT JOIN game_players gp
       ON gp.game_id = g.game_id AND gp.is_ai = true
     LEFT JOIN analyzer_reports ar
-      ON ar.game_id = g.game_id AND ar.player_id = gp.player_id AND ar.model_used = $1
+      ON ar.game_id = g.game_id
+     AND ar.player_id = gp.player_id
+     AND ar.model_used = $1
+     AND ar.analysis_version = $2
     WHERE g.ended_at IS NOT NULL
     GROUP BY g.game_id
     HAVING COUNT(gp.player_id) = COUNT(ar.player_id)
-  `, [modelUsed]);
+  `, [modelUsed, ANALYSIS_VERSION]);
   return res.rows.map((r) => r.game_id);
 }
 
@@ -205,17 +262,17 @@ export async function getPatternStats(modelUsed = DEFAULT_ANALYSIS_MODEL) {
         COUNT(*)::int                  AS occurrences,
         COUNT(DISTINCT (e.game_id, e.player_id))::int AS bots_affected
       FROM analyzer_pattern_evidence e
-      WHERE e.model_used = $1
+      WHERE e.model_used = $1 AND e.analysis_version = $2
       GROUP BY e.label
       ORDER BY bots_affected DESC, occurrences DESC
-    `, [modelUsed]),
+    `, [modelUsed, ANALYSIS_VERSION]),
     pool.query(`
       SELECT
         COUNT(*)::int                              AS total_bots_analyzed,
         COUNT(DISTINCT game_id)::int               AS total_games_analyzed
       FROM analyzer_reports
-      WHERE model_used = $1
-    `, [modelUsed]),
+      WHERE model_used = $1 AND analysis_version = $2
+    `, [modelUsed, ANALYSIS_VERSION]),
   ]);
 
   const totals = totalsRows[0] ?? { total_bots_analyzed: 0, total_games_analyzed: 0 };
@@ -231,9 +288,9 @@ export async function getPatternStatsByModel(modelUsed = DEFAULT_ANALYSIS_MODEL)
     pool.query(`
       SELECT model_name, COUNT(*)::int AS bots_count
       FROM analyzer_reports
-      WHERE model_name IS NOT NULL AND model_used = $1
+      WHERE model_name IS NOT NULL AND model_used = $1 AND analysis_version = $2
       GROUP BY model_name
-    `, [modelUsed]),
+    `, [modelUsed, ANALYSIS_VERSION]),
     pool.query(`
       SELECT
         r.model_name                                    AS model_name,
@@ -245,10 +302,13 @@ export async function getPatternStatsByModel(modelUsed = DEFAULT_ANALYSIS_MODEL)
         ON e.game_id = r.game_id
        AND e.player_id = r.player_id
        AND e.model_used = r.model_used
-      WHERE r.model_name IS NOT NULL AND r.model_used = $1
+       AND e.analysis_version = r.analysis_version
+      WHERE r.model_name IS NOT NULL
+        AND r.model_used = $1
+        AND r.analysis_version = $2
       GROUP BY r.model_name, e.label
       ORDER BY r.model_name, bots_affected DESC, occurrences DESC
-    `, [modelUsed]),
+    `, [modelUsed, ANALYSIS_VERSION]),
   ]);
 
   const byModel = new Map();
